@@ -14,7 +14,7 @@ gh auth status
 ./scripts/repo-doctor
 
 if [[ ! -d .git ]]; then
-  git init
+  git init -b main
 fi
 
 git add -A
@@ -30,6 +30,7 @@ gh repo create "$full" \
   --push
 
 gh api -X PATCH "repos/$full" \
+  -f default_branch=main \
   -f is_template=true \
   -f has_issues=true \
   -f has_projects=false \
