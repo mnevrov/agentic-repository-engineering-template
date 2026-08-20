@@ -1,4 +1,4 @@
-.PHONY: doctor check test test-integration
+.PHONY: doctor check test test-integration test-template telemetry-check telemetry-summary
 
 doctor:
 	./scripts/repo-doctor
@@ -12,3 +12,12 @@ test:
 
 test-integration:
 	@echo "TODO: replace with integration/e2e command for your project"
+
+test-template:
+	python3 tests/test_telemetry.py
+
+telemetry-check:
+	python3 scripts/validate-telemetry.py
+
+telemetry-summary:
+	python3 scripts/telemetry-summary.py
