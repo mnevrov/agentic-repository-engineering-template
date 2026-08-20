@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+required=(
+  AGENTS.md
+  CLAUDE.md
+  docs/INDEX.md
+  docs/architecture/overview.md
+  docs/architecture/invariants.md
+  docs/backlog/ROADMAP.md
+  docs/backlog/TODO.md
+  docs/process/development-cycle.md
+  docs/process/code-review.md
+  docs/process/definition-of-done.md
+  docs/process/evidence-ladder.md
+  .ai/templates/TASK.md
+  .ai/templates/REVIEW.md
+  .ai/schemas/cycle.schema.json
+)
+
+failed=0
+for f in "${required[@]}"; do
+  if [[ -f "$f" ]]; then
+    printf '[ OK ] %s\n' "$f"
+  else
+    printf '[MISS] %s\n' "$f"
+    failed=1
+  fi
+done
+
+if grep -RInE '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})' \
+  --exclude-dir=.git --exclude='*.zip' . >/tmp/repo-doctor-secrets.$$ 2>/dev/null; then
+  echo '[WARN] possible secret-like material found:'
+  cat /tmp/repo-doctor-secrets.$$
+  failed=1
+else
+  echo '[ OK ] no obvious secret patterns found'
+fi
+rm -f /tmp/repo-doctor-secrets.$$
+
+if [[ $failed -eq 0 ]]; then
+  echo 'Repository engineering skeleton looks consistent.'
+else
+  echo 'Repository doctor found issues.' >&2
+  exit 1
+fi

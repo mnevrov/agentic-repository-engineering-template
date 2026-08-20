@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+owner="${1:-mnevrov}"
+repo="${2:-agentic-repository-engineering-template}"
+full="$owner/$repo"
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "gh CLI is required: https://cli.github.com/" >&2
+  exit 2
+fi
+
+gh auth status
+./scripts/repo-doctor
+
+if [[ ! -d .git ]]; then
+  git init
+fi
+
+git add -A
+if ! git diff --cached --quiet; then
+  git commit -m "initial template"
+fi
+
+gh repo create "$full" \
+  --public \
+  --description "Template repository for controlled AI-agent development cycles" \
+  --source . \
+  --remote origin \
+  --push
+
+gh api -X PATCH "repos/$full" \
+  -f is_template=true \
+  -f has_issues=true \
+  -f has_projects=false \
+  -f has_wiki=false
+
+gh repo edit "$full" \
+  --add-topic ai-agents \
+  --add-topic repository-template \
+  --add-topic engineering-process \
+  --add-topic adr \
+  --add-topic tdd
+
+echo "Published: https://github.com/$full"

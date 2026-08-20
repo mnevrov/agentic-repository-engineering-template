@@ -1,0 +1,18 @@
+name: Repository Doctor
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository skeleton
+        run: ./scripts/repo-doctor
+      - name: Project checks
+        run: make check
+      - name: Project tests
+        run: make test

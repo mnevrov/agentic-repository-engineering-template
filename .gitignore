@@ -1,0 +1,22 @@
+# secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# language/build artifacts
+__pycache__/
+.pytest_cache/
+node_modules/
+build/
+dist/
+
+# local telemetry can be committed intentionally if policy allows;
+# uncomment to keep it private:
+# .ai/telemetry/*.jsonl

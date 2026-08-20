@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agentic development cycle",
+  "type": "object",
+  "required": ["cycle_id", "task_id", "started_at", "ended_at", "result"],
+  "properties": {
+    "cycle_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "started_at": {"type": "string"},
+    "ended_at": {"type": "string"},
+    "model": {"type": ["string", "null"]},
+    "provider": {"type": ["string", "null"]},
+    "agent_role": {"type": ["string", "null"]},
+    "risk": {"enum": ["A", "B", "C", null]},
+    "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "tool_seconds": {"type": ["number", "null"], "minimum": 0},
+    "test_seconds": {"type": ["number", "null"], "minimum": 0},
+    "review_rounds": {"type": ["integer", "null"], "minimum": 0},
+    "review_p0": {"type": ["integer", "null"], "minimum": 0},
+    "review_p1": {"type": ["integer", "null"], "minimum": 0},
+    "parallel": {"type": "boolean", "default": false},
+    "human_minutes": {"type": ["number", "null"], "minimum": 0},
+    "result": {"enum": ["passed", "failed", "partial", "aborted"]},
+    "evidence_ref": {"type": ["string", "null"]},
+    "notes": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}
