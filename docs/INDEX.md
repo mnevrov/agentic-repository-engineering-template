@@ -43,6 +43,9 @@
 
 - [`examples/`](examples/) — примеры применения процесса.
 - [`workshop/`](workshop/) — демонстрационные материалы.
+- [`workshop/team-demo-scenario.md`](workshop/team-demo-scenario.md) — рекомендуемый сценарий командной презентации на 15 минут с несколькими итерациями.
+- [`workshop/demo-project.md`](workshop/demo-project.md) — спецификация демонстрационного Mini Task Board, Task DEMO-1…DEMO-4 и checkpoints.
+- [`workshop/10-minute-demo.md`](workshop/10-minute-demo.md) — сокращённая демонстрация механики template без live-разработки нескольких фич.
 
 ## Актуализация
 
