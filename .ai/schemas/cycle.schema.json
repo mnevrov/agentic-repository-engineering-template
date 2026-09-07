@@ -24,86 +24,66 @@
       "type": "string",
       "format": "date-time"
     },
+    "duration_seconds": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "git_head": {
+      "type": ["string", "null"]
+    },
+    "git_dirty": {
+      "type": ["boolean", "null"]
+    },
+    "changed_files": {
+      "type": ["array", "null"],
+      "items": {"type": "string"}
+    },
+    "diff_lines": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
     "model": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "provider": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "agent_role": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "risk": {
-      "enum": [
-        "A",
-        "B",
-        "C",
-        null
-      ]
+      "enum": ["A", "B", "C", null]
     },
     "input_tokens": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "output_tokens": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "tool_seconds": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "test_seconds": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "ci_seconds": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "review_rounds": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "review_p0": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "review_p1": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "parallel": {
@@ -111,61 +91,32 @@
       "default": false
     },
     "human_minutes": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "estimated_cost_usd": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "live_validation_result": {
-      "enum": [
-        "passed",
-        "failed",
-        "skipped",
-        "not_applicable",
-        null
-      ]
+      "enum": ["passed", "failed", "skipped", "not_applicable", null]
     },
     "defects_found_pre_release": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "escaped_defects": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "result": {
-      "enum": [
-        "passed",
-        "failed",
-        "partial",
-        "aborted"
-      ]
+      "enum": ["passed", "failed", "partial", "aborted"]
     },
     "evidence_ref": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "notes": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     }
   },
   "additionalProperties": false

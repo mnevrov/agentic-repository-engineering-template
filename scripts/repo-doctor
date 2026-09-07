@@ -13,9 +13,13 @@ required=(
   docs/process/code-review.md
   docs/process/definition-of-done.md
   docs/process/evidence-ladder.md
+  docs/process/traceability.md
+  docs/process/telemetry.md
   .ai/templates/TASK.md
   .ai/templates/REVIEW.md
   .ai/schemas/cycle.schema.json
+  scripts/check-telemetry-append-only.py
+  scripts/check-telemetry-required.py
 )
 
 failed=0

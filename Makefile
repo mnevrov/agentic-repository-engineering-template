@@ -3,18 +3,22 @@
 doctor:
 	./scripts/repo-doctor
 
+# Project-owned gates are intentionally fail-closed in the reusable template.
+# Replace these recipes before relying on CI in a repository created from the template.
 check:
-	@echo "TODO: replace with formatter/linter/type-check commands for your project"
+	@echo "NOT CONFIGURED: replace 'make check' with formatter/linter/type-check commands for your project" >&2
+	@exit 2
 
-# Intentional placeholder: configure this before relying on the template.
 test:
-	@echo "TODO: replace with unit-test command for your project"
+	@echo "NOT CONFIGURED: replace 'make test' with unit-test commands for your project" >&2
+	@exit 2
 
 test-integration:
-	@echo "TODO: replace with integration/e2e command for your project"
+	@echo "NOT CONFIGURED: replace 'make test-integration' with integration/e2e commands for your project" >&2
+	@exit 2
 
 test-template:
-	python3 tests/test_telemetry.py
+	python3 -m unittest discover -s tests -p 'test_*.py'
 
 telemetry-check:
 	python3 scripts/validate-telemetry.py

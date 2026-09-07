@@ -2,8 +2,10 @@
 
 **Статус:** planned  
 **Риск:** A / B / C  
+**Human gate:** required / delegated (delegated допустим только для A)  
 **Владелец:**  
 **Связанный эпик/этап:**  
+**Requirements / ADR:** ссылки или `n/a`  
 
 ## Зачем
 
@@ -34,6 +36,7 @@
 - unit: ...
 - integration: ...
 - e2e/live: ...
+- ожидаемый evidence level: E0 / E1 / E2 / E3 / E4 / E5
 
 ## Доказательства
 
@@ -42,10 +45,17 @@
 - команды:
 - результаты:
 - артефакты:
+- фактический evidence level:
 - что не проверено:
 
 ## Review
 
 - self-review:
-- independent review:
+- independent review artifact: `docs/reviews/TASK-XXX-review.md`
 - остаточные замечания:
+
+## Traceability
+
+- requirement/ADR → task:
+- task → evidence:
+- task → commit/PR:

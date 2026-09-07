@@ -13,6 +13,7 @@
 - [`backlog/ROADMAP.md`](backlog/ROADMAP.md) — этапы и цели.
 - [`backlog/TODO.md`](backlog/TODO.md) — ближайшие небольшие задачи.
 - [`tasks/`](tasks/) — задачи и критерии приёмки.
+- [`reviews/`](reviews/) — независимые clean-context review artifacts.
 
 ## Процесс
 
@@ -20,6 +21,7 @@
 - [`process/code-review.md`](process/code-review.md)
 - [`process/definition-of-done.md`](process/definition-of-done.md)
 - [`process/evidence-ladder.md`](process/evidence-ladder.md)
+- [`process/traceability.md`](process/traceability.md)
 - [`process/telemetry.md`](process/telemetry.md)
 
 ## Актуализация
