@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-import json
-import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +19,10 @@ class TelemetryTests(unittest.TestCase):
             "ended_at": "2026-08-20T12:30:00Z",
             "result": "passed",
             "parallel": False,
+            "duration_seconds": 1800,
+            "git_dirty": True,
+            "changed_files": ["src/app.py"],
+            "diff_lines": 12,
         }
         self.assertEqual(validate_row(row, load_schema()), [])
 
@@ -36,7 +37,7 @@ class TelemetryTests(unittest.TestCase):
             "parallel": False,
         }
         errors = validate_row(row, load_schema())
-        self.assertTrue(any("tool_seconds" in e for e in errors))
+        self.assertTrue(any("tool_seconds" in error for error in errors))
 
     def test_end_before_start_is_rejected(self):
         row = {
@@ -49,6 +50,18 @@ class TelemetryTests(unittest.TestCase):
         }
         errors = validate_row(row, load_schema())
         self.assertIn("ended_at must be >= started_at", errors)
+
+    def test_negative_automatic_diff_metric_is_rejected(self):
+        row = {
+            "cycle_id": "TASK-1-a",
+            "task_id": "TASK-1",
+            "started_at": "2026-08-20T12:00:00Z",
+            "ended_at": "2026-08-20T12:30:00Z",
+            "result": "failed",
+            "diff_lines": -1,
+        }
+        errors = validate_row(row, load_schema())
+        self.assertTrue(any("diff_lines" in error for error in errors))
 
 
 if __name__ == "__main__":

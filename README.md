@@ -28,18 +28,19 @@ cd my-project
 rm -rf .git
 git init
 ./scripts/repo-doctor
+make test-template
 ./scripts/new-task TASK-1 "Настроить команды проверки проекта"
 ```
 
-Дальше:
+`make check`, `make test` и `make test-integration` в исходном шаблоне намеренно завершаются `NOT CONFIGURED` с ненулевым кодом. Это fail-closed состояние, а не ошибка шаблона: сначала замените эти recipes реальными командами вашего проекта, после чего они становятся acceptance gates.
+
+После настройки project gates:
 
 ```bash
-make doctor
 make check
 make test
-make test-template
 
-python scripts/record-cycle.py \
+python3 scripts/record-cycle.py \
   --task TASK-1 \
   --started 2026-08-20T12:00:00Z \
   --ended 2026-08-20T12:30:00Z \
@@ -58,7 +59,7 @@ make telemetry-summary
 
 Скопируйте в новый чат содержимое [`START_PROMPT.md`](START_PROMPT.md) или дайте агенту короткую команду:
 
-> Изучи `AGENTS.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/process/development-cycle.md`, `docs/process/telemetry.md` и `docs/tasks/TASK-1.md`. Предложи план выполнения одной задачи, но не меняй файлы до подтверждения.
+> Изучи `AGENTS.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/process/development-cycle.md`, `docs/process/telemetry.md` и `docs/tasks/TASK-1.md`. Предложи план выполнения одной задачи, но не меняй файлы до требуемого human gate.
 
 Для независимой проверки используйте [`REVIEW_PROMPT.md`](REVIEW_PROMPT.md).
 
@@ -92,8 +93,8 @@ make telemetry-summary
 ## Рабочий цикл
 
 ```text
-Контекст → одна задача → критерии приёмки → подтверждение человеком
-        → тест/реализация → самопроверка → независимая проверка
+Контекст → одна задача → критерии приёмки → human gate
+        → тест/реализация → самопроверка → независимая clean-context проверка
         → доказательства → обновление документации
         → запись телеметрии → коммит
 ```
@@ -151,14 +152,14 @@ make telemetry-summary
 ## Уровни риска задач
 
 - **A** — обычная задача: self-review + независимая проверка, P0 блокирует завершение.
-- **B** — интеграция или контракт: P0/P1 блокируют завершение.
-- **C** — безопасность, права, деньги, данные, destructive actions: требуется атакующая проверка до нулевых P0/P1.
+- **B** — интеграция или контракт: обязательный human gate; P0/P1 блокируют завершение.
+- **C** — безопасность, права, деньги, данные, destructive actions: обязательный human gate и атакующая проверка до нулевых P0/P1.
 
 Подробно: [`docs/process/code-review.md`](docs/process/code-review.md).
 
 ## Что обязательно заменить под свой проект
 
-1. Команды в `Makefile`.
+1. Команды в `Makefile`: исходные placeholders намеренно fail-closed.
 2. Описание системы в `docs/architecture/overview.md`.
 3. Архитектурные инварианты в `docs/architecture/invariants.md`.
 4. Реальные этапы в `docs/backlog/ROADMAP.md`.

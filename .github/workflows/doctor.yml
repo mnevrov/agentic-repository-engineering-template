@@ -16,17 +16,35 @@ jobs:
         run: ./scripts/repo-doctor
       - name: Validate telemetry
         run: python3 scripts/validate-telemetry.py
-      - name: Enforce append-only telemetry
+      - name: Enforce telemetry contract
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            python3 scripts/check-telemetry-append-only.py --base-ref "origin/${{ github.base_ref }}"
+            BASE_REF="origin/${{ github.base_ref }}"
           elif [[ -n "${{ github.event.before }}" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
-            python3 scripts/check-telemetry-append-only.py --base-ref "${{ github.event.before }}"
+            BASE_REF="${{ github.event.before }}"
+          else
+            BASE_REF=""
+          fi
+          if [[ -n "$BASE_REF" ]]; then
+            python3 scripts/check-telemetry-append-only.py --base-ref "$BASE_REF"
+            python3 scripts/check-telemetry-required.py --base-ref "$BASE_REF"
           fi
       - name: Test template tooling
         run: make test-template
-      - name: Project checks
-        run: make check
-      - name: Project tests
-        run: make test
+      - name: Project checks and tests
+        shell: bash
+        run: |
+          if [[ "${{ github.repository }}" == "mnevrov/agentic-repository-engineering-template" ]]; then
+            set +e
+            CHECK_OUTPUT="$(make check 2>&1)"; CHECK_RC=$?
+            TEST_OUTPUT="$(make test 2>&1)"; TEST_RC=$?
+            set -e
+            printf '%s\n' "$CHECK_OUTPUT"
+            printf '%s\n' "$TEST_OUTPUT"
+            [[ $CHECK_RC -eq 2 && "$CHECK_OUTPUT" == *"NOT CONFIGURED"* ]]
+            [[ $TEST_RC -eq 2 && "$TEST_OUTPUT" == *"NOT CONFIGURED"* ]]
+          else
+            make check
+            make test
+          fi

@@ -1,9 +1,57 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import subprocess
 import uuid
+from datetime import datetime
 
-from telemetry_lib import TELEMETRY_PATH, load_schema, validate_row
+from telemetry_lib import ROOT, TELEMETRY_PATH, load_schema, validate_row
+
+
+def run_git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=ROOT, text=True, capture_output=True)
+
+
+def parse_time(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def automatic_evidence(started: str, ended: str) -> dict[str, object]:
+    try:
+        duration = max(0.0, (parse_time(ended) - parse_time(started)).total_seconds())
+    except (ValueError, TypeError):
+        duration = None
+
+    head = run_git("rev-parse", "HEAD")
+    status = run_git("status", "--porcelain")
+    tracked = run_git("diff", "--name-only", "HEAD")
+    untracked = run_git("ls-files", "--others", "--exclude-standard")
+    numstat = run_git("diff", "--numstat", "HEAD")
+
+    changed_files = None
+    git_dirty = None
+    if status.returncode == 0:
+        git_dirty = bool(status.stdout.strip())
+    if tracked.returncode == 0 and untracked.returncode == 0:
+        changed_files = sorted(set(tracked.stdout.splitlines()) | set(untracked.stdout.splitlines()))
+
+    diff_lines = None
+    if numstat.returncode == 0:
+        total = 0
+        for line in numstat.stdout.splitlines():
+            parts = line.split("\t", 2)
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                total += int(parts[0]) + int(parts[1])
+        diff_lines = total
+
+    return {
+        "duration_seconds": duration,
+        "git_head": head.stdout.strip() if head.returncode == 0 else None,
+        "git_dirty": git_dirty,
+        "changed_files": changed_files,
+        "diff_lines": diff_lines,
+    }
+
 
 p = argparse.ArgumentParser(description="Append one agentic development cycle to JSONL telemetry.")
 p.add_argument("--task", required=True)
@@ -59,6 +107,7 @@ row = {
     "result": args.result,
     "evidence_ref": args.evidence,
     "notes": args.notes,
+    **automatic_evidence(args.started, args.ended),
 }
 
 errors = validate_row(row, load_schema())
