@@ -1,26 +1,56 @@
 # Agentic Repository Engineering Template
 
-Практический шаблон репозитория для разработки с AI-агентами. Главная идея: **проектная память, правила, задачи, проверки, доказательства и измеримые циклы живут в Git**, а не растворяются в истории чатов.
+Шаблон репозитория для управляемой разработки с AI-агентами. Основная идея: **долгоживущий контекст проекта, правила, задачи, архитектурные решения, проверки, review, доказательства и телеметрия хранятся в Git**, а не в истории конкретного чата.
 
-Шаблон можно использовать с Claude Code, Codex CLI, OpenCode и любым другим coding agent. Он не привязан к языку программирования и не содержит продуктовых деталей SHEIP.
+Шаблон не привязан к конкретному языку программирования или AI-инструменту. Его можно использовать с OpenCode, Codex CLI, Claude Code и другими coding agents.
 
-## Для чего этот шаблон
+## С чего начать
 
-Он помогает сделать агентскую разработку управляемой:
+Если вы впервые открыли этот репозиторий, начните с подробной инструкции:
 
-1. Агент восстанавливает контекст из репозитория, а не из прошлой беседы.
-2. Работа идёт по одной небольшой задаче за цикл.
-3. До генерации фиксируются задача, критерии приёмки и архитектурные ограничения.
-4. Изменения проходят тесты, самопроверку и независимую проверку.
-5. Завершение подтверждается доказательствами: команды, логи, ссылки, review.
-6. Существенные технические решения оформляются как ADR.
-7. **Каждая попытка цикла записывается в append-only JSONL-телеметрию**, поэтому можно измерять скорость, переработки, проверки, стоимость, участие человека и дефекты.
+**[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — пошаговый запуск нового проекта и первый полный агентский цикл.**
+
+Краткий путь выглядит так:
+
+```text
+создать проект из шаблона
+        ↓
+проверить каркас репозитория
+        ↓
+настроить реальные make check / make test
+        ↓
+описать архитектуру и инварианты
+        ↓
+создать одну небольшую Task с Acceptance Criteria
+        ↓
+запустить coding agent из корня репозитория
+        ↓
+human gate → реализация → проверки
+        ↓
+self-review → independent clean-context review
+        ↓
+evidence → telemetry → commit / PR
+```
 
 ## Быстрый старт
 
-Если репозиторий опубликован как GitHub Template, нажмите **Use this template** и создайте свой проект.
+### Вариант 1 — GitHub Template
 
-Локально:
+Если этот репозиторий отмечен как GitHub Template Repository:
+
+1. Нажмите **Use this template**.
+2. Создайте новый репозиторий.
+3. Клонируйте уже созданный проект.
+4. Выполните первичную диагностику.
+
+```bash
+git clone <URL-ВАШЕГО-РЕПОЗИТОРИЯ>
+cd <ИМЯ-РЕПОЗИТОРИЯ>
+./scripts/repo-doctor
+make test-template
+```
+
+### Вариант 2 — копирование шаблона вручную
 
 ```bash
 git clone https://github.com/mnevrov/agentic-repository-engineering-template.git my-project
@@ -29,151 +59,159 @@ rm -rf .git
 git init
 ./scripts/repo-doctor
 make test-template
-./scripts/new-task TASK-1 "Настроить команды проверки проекта"
 ```
 
-`make check`, `make test` и `make test-integration` в исходном шаблоне намеренно завершаются `NOT CONFIGURED` с ненулевым кодом. Это fail-closed состояние, а не ошибка шаблона: сначала замените эти recipes реальными командами вашего проекта, после чего они становятся acceptance gates.
+После этого **сначала настройте реальные проектные проверки** в `Makefile`.
 
-После настройки project gates:
+В исходном шаблоне команды:
 
 ```bash
 make check
 make test
+make test-integration
+```
 
+намеренно завершаются сообщением `NOT CONFIGURED` и ненулевым кодом. Это защитное fail-closed поведение: шаблон не должен создавать впечатление, что проект проверен, пока реальные команды ещё не определены.
+
+## Что нужно заполнить перед разработкой продукта
+
+Минимально настройте:
+
+1. `Makefile` — реальные команды сборки/lint/static checks/tests.
+2. `docs/architecture/overview.md` — что строится и из каких частей.
+3. `docs/architecture/invariants.md` — правила, которые агент не имеет права нарушать молча.
+4. `docs/backlog/ROADMAP.md` — ближайшие этапы и измеримые результаты.
+5. `docs/backlog/TODO.md` — небольшие готовые к работе задачи.
+6. `docs/adr/` — уже принятые архитектурные решения.
+7. `AGENTS.md` — общие правила для любых AI-агентов, если проекту нужны дополнительные ограничения.
+
+После этого создайте первую реальную задачу:
+
+```bash
+./scripts/new-task TASK-1 "Короткое название задачи"
+```
+
+Заполните `docs/tasks/TASK-1.md`: scope, Acceptance Criteria, риск A/B/C, режим human gate, архитектурные ограничения и способ проверки.
+
+## Как запустить агента
+
+Запускайте выбранный coding agent **из корня репозитория**, чтобы он видел весь project context.
+
+Примеры точек входа:
+
+```bash
+opencode
+codex
+claude
+```
+
+После запуска дайте агенту содержимое [`START_PROMPT.md`](START_PROMPT.md) или попросите его выполнить одну конкретную Task по правилам репозитория.
+
+Для Claude Code дополнительно доступны repository commands:
+
+```text
+/develop   — выполнить одну небольшую задачу разработки
+/iterate   — провести небольшую архитектурную итерацию
+```
+
+Для OpenCode, Codex CLI и других агентов используйте `START_PROMPT.md` и файлы из `docs/process/` как общий контракт.
+
+## Рабочий цикл
+
+```text
+контекст
+  ↓
+одна Task + Acceptance Criteria
+  ↓
+оценка риска A/B/C
+  ↓
+human gate
+  ↓
+проверочный сценарий / тест
+  ↓
+минимальная реализация
+  ↓
+make check / make test / применимые integration checks
+  ↓
+self-review
+  ↓
+independent clean-context review
+  ↓
+Definition of Done
+  ↓
+evidence + telemetry
+  ↓
+commit / PR
+```
+
+Подробное описание: [`docs/process/development-cycle.md`](docs/process/development-cycle.md).
+
+## Риски и human gate
+
+| Риск | Типичный пример | Human gate | Review |
+|---|---|---|---|
+| A | локальная логика, UI, документация, небольшой refactoring | `required` или заранее `delegated` | independent review |
+| B | API, интеграция, миграция, concurrency, важные данные | обязательный | усиленный independent review |
+| C | auth, права, секреты, destructive actions, деньги, криптография | обязательный | adversarial review до 0 P0/P1 |
+
+Подробно: [`docs/process/code-review.md`](docs/process/code-review.md).
+
+## Доказательства результата
+
+Шаблон различает силу фактической проверки:
+
+- **E0** — изменение только создано;
+- **E1** — static check / lint / compile;
+- **E2** — unit/contract tests;
+- **E3** — integration/e2e;
+- **E4** — проверка в целевой или production-like среде;
+- **E5** — повторяемое подтверждение в реальной эксплуатации.
+
+Нельзя повышать уровень доказательства формулировкой. Mock не является live integration, а успешная компиляция не является подтверждением пользовательского сценария.
+
+Подробнее: [`docs/process/evidence-ladder.md`](docs/process/evidence-ladder.md).
+
+## Телеметрия
+
+Каждая попытка работы записывается в `.ai/telemetry/cycles.jsonl`, включая `failed`, `partial` и `aborted`.
+
+Пример:
+
+```bash
 python3 scripts/record-cycle.py \
   --task TASK-1 \
-  --started 2026-08-20T12:00:00Z \
-  --ended 2026-08-20T12:30:00Z \
+  --started 2026-09-01T10:00:00Z \
+  --ended 2026-09-01T10:40:00Z \
   --result passed \
   --risk A \
   --model example-model \
+  --provider example-provider \
   --review-rounds 1 \
-  --human-minutes 5 \
   --evidence docs/tasks/TASK-1.md
 
 make telemetry-check
 make telemetry-summary
 ```
 
-## Что показать агенту в первой сессии
+`scripts/record-cycle.py` автоматически добавляет доступные Git-данные и длительность цикла. Неизвестные значения оставляйте `null`; не оценивайте токены, стоимость или время человека на глаз.
 
-Скопируйте в новый чат содержимое [`START_PROMPT.md`](START_PROMPT.md) или дайте агенту короткую команду:
+## Навигация по документации
 
-> Изучи `AGENTS.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/process/development-cycle.md`, `docs/process/telemetry.md` и `docs/tasks/TASK-1.md`. Предложи план выполнения одной задачи, но не меняй файлы до требуемого human gate.
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — полный onboarding.
+- [`docs/INDEX.md`](docs/INDEX.md) — карта проектной памяти.
+- [`docs/reference/commands.md`](docs/reference/commands.md) — справочник команд.
+- [`docs/process/development-cycle.md`](docs/process/development-cycle.md) — полный рабочий цикл.
+- [`docs/process/definition-of-done.md`](docs/process/definition-of-done.md) — Definition of Done.
+- [`docs/process/code-review.md`](docs/process/code-review.md) — review, risk levels и исключения.
+- [`docs/process/evidence-ladder.md`](docs/process/evidence-ladder.md) — уровни доказательств.
+- [`docs/process/telemetry.md`](docs/process/telemetry.md) — телеметрия и метрики.
+- [`docs/process/traceability.md`](docs/process/traceability.md) — трассируемость решений и изменений.
+- [`docs/examples/first-agent-cycle.md`](docs/examples/first-agent-cycle.md) — конкретный пример первого цикла.
 
-Для независимой проверки используйте [`REVIEW_PROMPT.md`](REVIEW_PROMPT.md).
+## Главный принцип
 
-## Структура
-
-```text
-.
-├── AGENTS.md                    # общие правила для AI-агентов
-├── CLAUDE.md                    # инструкция для Claude Code
-├── START_PROMPT.md              # промт первой рабочей сессии
-├── REVIEW_PROMPT.md             # промт независимой проверки
-├── .claude/commands/            # команды /iterate и /develop
-├── .ai/
-│   ├── templates/               # шаблоны задачи, приёмки, review
-│   ├── schemas/                 # схема JSONL-телеметрии
-│   └── telemetry/               # append-only журнал циклов
-├── docs/
-│   ├── architecture/            # архитектура и инварианты
-│   ├── adr/                     # архитектурные решения
-│   ├── backlog/                 # ROADMAP и TODO
-│   ├── process/                 # цикл, review, DoD, доказательства, телеметрия
-│   ├── tasks/                   # задачи с критериями приёмки
-│   ├── reviews/                 # результаты независимых проверок
-│   ├── examples/                # пример первого агентского цикла
-│   └── workshop/                # материалы для демонстрации подхода
-├── scripts/                     # doctor, new-task, telemetry tools
-├── src/                         # код вашего проекта
-└── tests/                       # тесты проекта и тесты tooling шаблона
-```
-
-## Рабочий цикл
-
-```text
-Контекст → одна задача → критерии приёмки → human gate
-        → тест/реализация → самопроверка → независимая clean-context проверка
-        → доказательства → обновление документации
-        → запись телеметрии → коммит
-```
-
-Подробно: [`docs/process/development-cycle.md`](docs/process/development-cycle.md).
-
-## Телеметрия и метрики
-
-Каждая завершённая попытка (`passed`, `failed`, `partial`, `aborted`) добавляет одну строку в `.ai/telemetry/cycles.jsonl`.
-
-Основные группы данных:
-
-- длительность цикла и задачи;
-- модель, провайдер и роль агента;
-- input/output tokens;
-- tool/test/CI runtime;
-- review rounds, P0/P1;
-- параллельность;
-- human steering time;
-- оценочная стоимость;
-- live-validation;
-- дефекты до выпуска и escaped defects;
-- ссылка на evidence.
-
-`scripts/telemetry-summary.py` агрегирует эти записи в:
-
-- cycle time;
-- task lead time;
-- throughput;
-- rework rate и cycles/task;
-- review intensity;
-- parallel share;
-- live-validation pass rate;
-- token/model usage;
-- стоимость;
-- human time;
-- tool/test/CI runtime;
-- defect escape rate.
-
-См. [`docs/process/telemetry.md`](docs/process/telemetry.md).
-
-## Уровни доказательств
-
-Шаблон разделяет утверждения по надёжности:
-
-- **E0** — утверждение без проверки;
-- **E1** — локальная ручная проверка;
-- **E2** — автоматический unit/contract тест;
-- **E3** — интеграционный тест;
-- **E4** — проверка в staging/production-like окружении;
-- **E5** — реальная эксплуатационная проверка.
-
-Подробно: [`docs/process/evidence-ladder.md`](docs/process/evidence-ladder.md).
-
-## Уровни риска задач
-
-- **A** — обычная задача: self-review + независимая проверка, P0 блокирует завершение.
-- **B** — интеграция или контракт: обязательный human gate; P0/P1 блокируют завершение.
-- **C** — безопасность, права, деньги, данные, destructive actions: обязательный human gate и атакующая проверка до нулевых P0/P1.
-
-Подробно: [`docs/process/code-review.md`](docs/process/code-review.md).
-
-## Что обязательно заменить под свой проект
-
-1. Команды в `Makefile`: исходные placeholders намеренно fail-closed.
-2. Описание системы в `docs/architecture/overview.md`.
-3. Архитектурные инварианты в `docs/architecture/invariants.md`.
-4. Реальные этапы в `docs/backlog/ROADMAP.md`.
-5. Технологические решения в `docs/adr/`.
-6. Первую настоящую задачу в `docs/tasks/`.
-7. При необходимости — способ автоматического получения токенов/стоимости из используемого AI-инструмента.
-
-## Материалы для презентации
-
-- [`HANDOUT.md`](HANDOUT.md) — короткая памятка слушателя.
-- [`docs/workshop/10-minute-demo.md`](docs/workshop/10-minute-demo.md) — сценарий демонстрации на 10 минут.
-- [`docs/examples/first-agent-cycle.md`](docs/examples/first-agent-cycle.md) — пример первого агентского цикла.
-- [`PUBLISH_TO_GITHUB.md`](PUBLISH_TO_GITHUB.md) — как опубликовать этот каталог как GitHub Template Repository.
+Не пытайтесь первым промтом поручить агенту «сделать весь проект». Шаблон рассчитан на **маленькие, ограниченные, проверяемые циклы**, после каждого из которых репозиторий содержит актуальную память о том, что было сделано, почему и чем это подтверждено.
 
 ## Лицензия
 
-MIT. Можно копировать структуру, менять её под команду и использовать во внутренних проектах.
+MIT. Шаблон можно адаптировать под внутренние и публичные проекты.
