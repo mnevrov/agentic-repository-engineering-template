@@ -1,57 +1,90 @@
-# 10-минутная демонстрация шаблона
+# Быстрая 10-минутная демонстрация шаблона
 
-## Перед демонстрацией
+Этот сценарий подходит, когда нужно быстро объяснить **механику template repository**, но нет времени показывать несколько продуктовых итераций.
 
-Покажите ссылку на шаблонный репозиторий или QR-код `docs/workshop/github-template-qr.png`. Если репозиторий ещё не опубликован, используйте архив и файл `PUBLISH_TO_GITHUB.md`.
+Для полноценной командной презентации с небольшим работающим проектом используйте:
 
+- [`team-demo-scenario.md`](team-demo-scenario.md) — рекомендуемый 15-минутный сценарий выступления;
+- [`demo-project.md`](demo-project.md) — спецификация Mini Task Board и четырёх демонстрационных итераций.
+
+---
 
 ## 0:00–2:00 — Репозиторий как память
 
 Покажите:
 
+- `AGENTS.md`;
 - `docs/INDEX.md`;
 - архитектуру и инварианты;
-- ROADMAP/TODO;
-- ADR.
+- ROADMAP/TODO.
 
 Ключевой тезис: новый агент восстанавливает контекст из репозитория, а не из старой беседы.
 
-## 2:00–4:00 — Одна задача
+---
 
-Откройте `docs/tasks/EXAMPLE-1.md` и покажите:
+## 2:00–4:00 — Одна Task
 
-- ID;
-- scope;
-- AC;
-- доказательства.
+Откройте один файл из `docs/tasks/` и покажите:
 
-## 4:00–6:00 — Рабочая команда агента
+- ID и scope;
+- Acceptance Criteria;
+- risk A/B/C;
+- human gate;
+- способ проверки;
+- evidence.
 
-Покажите `.claude/commands/develop.md`.
-Обратите внимание на human confirmation и ограничение одной задачей.
+Ключевой тезис: агент не получает расплывчатое «сделай фичу», а ограниченную проверяемую инженерную задачу.
 
-## 6:00–8:00 — Review и DoD
+---
+
+## 4:00–6:00 — Рабочий цикл
+
+Покажите `docs/process/development-cycle.md` или `.claude/commands/develop.md`.
+
+Сфокусируйтесь только на цепочке:
+
+```text
+контекст → одна Task → план → human gate
+→ реализация → реальные проверки
+→ self-review → independent review
+→ evidence → telemetry → commit/PR
+```
+
+---
+
+## 6:00–8:00 — Review и доказательства
 
 Покажите:
 
-- risk A/B/C;
-- independent review;
-- `definition-of-done.md`;
-- evidence ladder.
+- `docs/process/code-review.md`;
+- `.ai/templates/REVIEW.md`;
+- `docs/process/evidence-ladder.md`.
+
+Объясните один пример:
+
+```text
+unit test               → E2
+integration/restart flow → E3
+```
+
+Главный тезис: сообщение модели «готово» не повышает уровень доказательств.
+
+---
 
 ## 8:00–10:00 — Измеримость
 
-Запишите тестовый цикл:
+Покажите существующую telemetry:
 
 ```bash
-python scripts/record-cycle.py \
-  --task EXAMPLE-1 \
-  --started 2026-08-20T12:00:00Z \
-  --ended 2026-08-20T12:20:00Z \
-  --result passed \
-  --risk A
-
-tail -1 .ai/telemetry/cycles.jsonl
+make telemetry-check
+make telemetry-summary
+tail -3 .ai/telemetry/cycles.jsonl
 ```
 
-Финальный тезис: **если процесс нельзя измерить, трудно доказать, что агентская разработка действительно улучшила инженерную систему.**
+Обратите внимание на task ID, result, duration, review/evidence reference.
+
+Финальный тезис:
+
+> Template не заменяет coding agent. Он превращает работу агента в повторяемый инженерный процесс, состояние которого хранится и проверяется в Git.
+
+Если после этого есть ещё 10–15 минут, переходите к Mini Task Board из `team-demo-scenario.md`: он показывает тот же процесс уже на нескольких видимых продуктовых итерациях.
