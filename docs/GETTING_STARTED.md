@@ -1,34 +1,30 @@
 # Начало работы с Agentic Repository Engineering Template
 
-Эта инструкция предназначена для разработчика, который впервые создаёт проект из шаблона. Она описывает весь путь от пустого нового репозитория до первой завершённой задачи, выполненной AI-агентом и подтверждённой проверками.
+Эта инструкция описывает путь от repository, созданного из template, до первой завершённой задачи AI-агента с реальными проверками, independent review, evidence и telemetry.
 
-Если нужно только вспомнить команды, используйте [`reference/commands.md`](reference/commands.md).
+Если нужны только команды, используйте [`reference/commands.md`](reference/commands.md).
 
 ---
 
-## 1. Что даёт шаблон
+## 1. Что даёт template
 
-Шаблон не является отдельной IDE, оркестратором моделей или заменой OpenCode/Codex/Claude Code. Он задаёт **инженерный контракт репозитория**, по которому работает человек и любой coding agent.
+Template не является IDE или model orchestrator. Он задаёт инженерный контракт repository:
 
-Он отвечает на вопросы:
+- где хранится актуальный project context;
+- какая Task готова к работе;
+- что входит и не входит в scope;
+- когда нужен human gate;
+- какие проверки считаются реальными;
+- как отделить self-review от independent review;
+- как фиксировать evidence и telemetry;
+- как оставить воспроизводимую историю в Git.
 
-- откуда агент должен брать актуальный контекст;
-- какую задачу он сейчас имеет право выполнять;
-- что считается завершением задачи;
-- когда требуется подтверждение человека;
-- какие проверки должны быть реально выполнены;
-- как отделить self-review от независимого review;
-- как доказать, что результат действительно проверен;
-- как оставить воспроизводимую историю работы в Git.
-
-Основной принцип:
+Главный принцип:
 
 ```text
 чат агента — временный рабочий контекст
-Git-репозиторий — долговременная память проекта
+Git repository — долговременная память проекта
 ```
-
-После перезапуска агента или перехода с Claude Code на OpenCode новый агент должен восстановить состояние проекта из файлов репозитория, а не из предыдущей беседы.
 
 ---
 
@@ -37,39 +33,29 @@ Git-репозиторий — долговременная память про�
 Минимально:
 
 - Git;
-- Python 3 для служебных скриптов шаблона;
+- Python 3;
 - `make`;
-- выбранный coding agent;
-- реальные команды сборки/проверки вашего проекта.
+- coding agent;
+- реальные команды проверки вашего проекта.
 
-Coding agent может быть любым. Шаблон уже содержит точки входа для:
-
-- OpenCode;
-- Codex CLI;
-- Claude Code;
-- других инструментов, способных читать и изменять файлы репозитория.
+Подход проверен с OpenCode и совместим по контракту с Codex CLI, Claude Code и другими агентами, способными работать с файлами repository.
 
 ---
 
-## 3. Создайте проект
+## 3. Создайте downstream repository
 
 ### Способ A — GitHub Template
 
-Если репозиторий опубликован как GitHub Template Repository:
-
-1. Откройте страницу шаблона.
-2. Нажмите **Use this template**.
-3. Создайте новый репозиторий организации или пользователя.
-4. Клонируйте уже новый проект.
+1. Нажмите **Use this template**.
+2. Создайте новый repository.
+3. Клонируйте его.
 
 ```bash
 git clone <URL-НОВОГО-РЕПОЗИТОРИЯ>
 cd <ИМЯ-ПРОЕКТА>
 ```
 
-История Git при таком способе уже относится к новому проекту, удалять `.git` не нужно.
-
-### Способ B — локальная копия шаблона
+### Способ B — локальная копия
 
 ```bash
 git clone https://github.com/mnevrov/agentic-repository-engineering-template.git my-project
@@ -78,36 +64,79 @@ rm -rf .git
 git init
 ```
 
-После этого настройте `origin` нового проекта обычным способом.
+После этого настройте `origin` нового проекта.
 
 ---
 
-## 4. Проверьте сам каркас шаблона
+## 4. Обязательно выполните downstream initialization
 
-Сначала убедитесь, что обязательные файлы на месте и tooling шаблона работает:
+GitHub Template копирует tracked files source repository. Поэтому без отдельной initialization новый проект унаследует source `TEMPLATE-*` Tasks, source telemetry и часть publish/demo artifacts.
+
+Это **не project history** нового проекта.
+
+Выполните:
+
+```bash
+./scripts/init-project "Название проекта"
+```
+
+Пример с собственным bootstrap ID:
+
+```bash
+./scripts/init-project "Mini Task Board" \
+  --bootstrap-id DEMO-BOOTSTRAP \
+  --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
+```
+
+Initializer:
+
+- удаляет `docs/tasks/TEMPLATE-*.md` и `EXAMPLE-1.md`;
+- очищает `.ai/telemetry/cycles.jsonl`;
+- удаляет template-only publish artifacts;
+- создаёт новый project README;
+- создаёт честные placeholder architecture/ROADMAP/TODO;
+- создаёт одну Ready bootstrap Task;
+- создаёт `.ai/project-initialized`;
+- блокирует случайный повторный запуск.
+
+Если повторная initialization действительно нужна:
+
+```bash
+./scripts/init-project "Название проекта" --force
+```
+
+Используйте `--force` только осознанно: операция предназначена для bootstrap свежего downstream repository.
+
+---
+
+## 5. Проверьте reusable tooling
+
+После initialization:
 
 ```bash
 ./scripts/repo-doctor
 make test-template
+make telemetry-check
 ```
 
-Ожидаемо:
+Ожидаемо эти команды проходят.
+
+`repo-doctor` теперь также проверяет согласованность:
 
 ```text
-Repository engineering skeleton looks consistent.
-...
-OK
+TODO Ready       ↔ Task status ready
+TODO In progress ↔ Task status in progress
+TODO Planned     ↔ Task status planned
+TODO Done        ↔ Task status done
 ```
 
-`repo-doctor` проверяет наличие ключевых файлов и некоторые очевидные secret-like patterns. Это полезный guardrail, но не полноценный security scanner.
-
-`make test-template` проверяет служебную механику самого шаблона: telemetry schema, fail-closed contract и другие template invariants.
+Это защищает новую agent session от противоречивого project context.
 
 ---
 
-## 5. Не начинайте feature-разработку, пока не настроены project gates
+## 6. Project gates должны начинаться fail-closed
 
-В свежем шаблоне:
+В свежем downstream:
 
 ```bash
 make check
@@ -115,573 +144,278 @@ make test
 make test-integration
 ```
 
-должны завершаться примерно так:
+должны возвращать `NOT CONFIGURED` с ненулевым exit code.
 
-```text
-NOT CONFIGURED: ...
-```
+Это правильное состояние.
 
-с ненулевым кодом.
+### Почему нельзя просто написать test discovery
 
-Это **правильное состояние нового шаблона**. Оно означает: шаблон ещё не знает, как проверить ваш проект, поэтому не выдаёт ложный PASS.
+Некоторые test runners возвращают exit 0 при нуле найденных тестов. Например, `unittest discover` может создать ложный зелёный gate, если matching tests отсутствуют.
 
-### Что нужно сделать
+Поэтому нельзя считать target настроенным только потому, что он вызывает test runner.
 
-Откройте `Makefile` и замените placeholders реальными командами проекта.
-
-Требуемая семантика:
-
-- `make check` — быстрые детерминированные проверки: форматирование, lint, type/static analysis, компиляция или аналогичные проверки;
-- `make test` — основной набор unit/contract tests;
-- `make test-integration` — integration/e2e проверки, если они применимы.
-
-Примеры только для ориентира.
-
-Python:
+### Пример честного Python bootstrap
 
 ```make
 check:
-	python -m ruff check .
+	@[ -d src ] && [ -d tests ] || \
+		{ echo "NOT CONFIGURED: expected src/ and tests/" >&2; exit 2; }
+	@find src tests -type f -name '*.py' -print -quit | grep -q . || \
+		{ echo "NOT CONFIGURED: no Python sources found" >&2; exit 2; }
+	python3 -m compileall -q src tests
 
 test:
-	python -m pytest
+	@find tests -maxdepth 1 -type f -name 'test_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: add at least one project test" >&2; exit 2; }
+	python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
-Node.js:
+Главное не конкретные команды, а семантика:
 
-```make
-check:
-	npm run lint
-
-test:
-	npm test
-```
-
-CMake/CTest:
-
-```make
-check:
-	cmake --build build
-
-test:
-	ctest --test-dir build --output-on-failure
-```
-
-Используйте реальные команды конкретного проекта, а не копируйте эти примеры механически.
-
-После настройки обязательно выполните:
-
-```bash
-make check
-make test
-```
-
-Если integration tests обязательны для проекта:
-
-```bash
-make test-integration
-```
-
-Только после этого эти команды являются evidence, а не placeholders.
-
-> Для репозитория самого шаблона CI специально умеет распознавать исходное состояние `NOT CONFIGURED`. В репозитории, созданном из шаблона, ненастроенные project gates должны ломать CI до их настройки.
+- target возвращает 0 только если реально выполнил применимую проверку;
+- отсутствие inputs/tests не превращается в PASS;
+- `NOT CONFIGURED` не считается evidence.
 
 ---
 
-## 6. Заполните память проекта
+## 7. Не делайте integration gate зелёным заранее
 
-До активной разработки агент должен понимать хотя бы базовые границы системы.
+Если настоящего integration/e2e scenario ещё нет, оставьте:
 
-### 6.1 `docs/architecture/overview.md`
+```make
+test-integration:
+	@echo "NOT CONFIGURED: integration tests are not implemented yet" >&2
+	@exit 2
+```
 
-Опишите:
+Не используйте пустой `unittest discover`, `pytest` или другую команду только для того, чтобы target завершился 0.
 
-- какую проблему решает проект;
-- для кого;
-- основные компоненты;
-- основные потоки данных;
+Настраивайте `make test-integration` одновременно с появлением первого настоящего integration/e2e test.
+
+Это было отдельно подтверждено real dry-run: до DEMO-3 integration gate честно возвращал exit 2, а в DEMO-3 был заменён настоящим restart-flow test.
+
+---
+
+## 8. Product tests и template tooling tests — разные наборы
+
+Рекомендуемая структура:
+
+```text
+tests/           project/product tests
+template_tests/  reusable repository tooling tests
+```
+
+Targets:
+
+```text
+make test           → tests/
+make test-template  → template_tests/
+```
+
+Не смешивайте их. Source-only contract tests не должны жить в downstream product test suite.
+
+---
+
+## 9. Завершите bootstrap Task до feature-разработки
+
+`scripts/init-project` создаёт одну Ready bootstrap Task. Она должна зафиксировать реальные сведения о проекте.
+
+### Architecture overview
+
+`docs/architecture/overview.md` должен содержать:
+
+- проблему и пользователей;
+- компоненты;
+- data/control flows;
 - внешние системы;
-- границы доверия;
+- trust boundaries;
 - нефункциональные требования;
-- что уже реализовано, а что является целевым состоянием.
+- **отдельно** текущее состояние и целевое состояние.
 
-Не смешивайте фактическую реализацию и планы. Агенту важно понимать, что действительно существует сейчас.
+Не описывайте будущий компонент как уже реализованный.
 
-### 6.2 `docs/architecture/invariants.md`
+### Invariants
 
-Инвариант — короткое правило, которое нельзя случайно нарушить обычной Task.
+`docs/architecture/invariants.md` содержит только реальные правила, которые feature Task не должна нарушать молча.
 
-Хорошие примеры:
+### ROADMAP/TODO
 
-- доменный слой не зависит от UI;
-- проверка authorization выполняется на серверной стороне;
-- секреты не попадают в Git и логи;
-- изменение схемы выполняется только миграцией;
-- write-operation требует approval.
+`ROADMAP` — крупные измеримые этапы.
 
-Если проект не имеет такого правила — не добавляйте его «для красоты».
+`TODO` — ближайшие bounded Tasks. Для каждой Task состояние TODO должно совпадать с полем `**Статус:**` в `docs/tasks/<ID>.md`.
 
-### 6.3 `docs/backlog/ROADMAP.md`
+### Telemetry
 
-ROADMAP должен описывать крупные этапы и измеримые результаты, а не сотни мелких TODO.
+После initialization `.ai/telemetry/cycles.jsonl` должна быть пустой. Source telemetry не переносится в project history.
 
-Например:
-
-```text
-M0 — проект собирается и тестируется
-M1 — первый вертикальный пользовательский сценарий
-M2 — MVP
-M3 — pilot / production readiness
-```
-
-### 6.4 `docs/backlog/TODO.md`
-
-Здесь держите ближайшие небольшие задачи, которые уже достаточно понятны для выбора в работу.
-
-### 6.5 `docs/adr/`
-
-ADR нужен, если решение:
-
-- влияет на архитектурные границы;
-- выбирает технологию/протокол/хранилище;
-- меняет долгосрочный контракт;
-- создаёт значимый trade-off, который следующему разработчику придётся понимать.
-
-Не создавайте ADR на каждую мелкую правку.
+Первую строку записывает уже собственный bootstrap cycle.
 
 ---
 
-## 7. Создайте первую Task
+## 10. Создавайте Tasks маленькими и самодостаточными
 
-Для каждой самостоятельной итерации создаётся одна Task:
+Если bootstrap завершён, создайте следующую Task:
 
 ```bash
-./scripts/new-task TASK-1 "Настроить первый рабочий сценарий"
+./scripts/new-task TASK-1 "Короткое название"
 ```
 
-Появится:
+Заполните:
+
+- статус;
+- risk A/B/C;
+- human gate;
+- зачем;
+- scope / non-scope;
+- Acceptance Criteria;
+- архитектурные ограничения;
+- verification plan;
+- ожидаемый evidence level.
+
+После добавления в `TODO Ready` установите:
 
 ```text
-docs/tasks/TASK-1.md
+**Статус:** ready
 ```
 
-### Что обязательно заполнить
-
-#### Статус
-
-Например:
-
-```text
-planned
-in progress
-in review
-done
-blocked
-```
-
-#### Риск
-
-Выберите A, B или C.
-
-#### Human gate
-
-- `required` — агент должен показать план и дождаться человека;
-- `delegated` — допустим только для A: человек заранее разрешил выполнить bounded Task без отдельной паузы перед кодом.
-
-#### Зачем
-
-Опишите проблему, а не предполагаемое решение.
-
-#### Scope
-
-Явно перечислите:
-
-- что входит;
-- что не входит.
-
-Это одна из самых эффективных защит от бесконтрольного расширения задачи агентом.
-
-#### Acceptance Criteria
-
-Критерий должен быть наблюдаемым и проверяемым.
-
-Плохо:
-
-```text
-- код должен быть хороший
-- сделать удобно
-```
-
-Хорошо:
-
-```text
-- AC-1: POST /items возвращает 201 для валидного payload
-- AC-2: повторный внешний ID возвращает 409
-- AC-3: unit и integration tests проходят
-```
-
-#### Архитектурные ограничения
-
-Сошлитесь на конкретные invariants/ADR, если они применимы.
-
-#### План проверки
-
-До реализации должно быть понятно, как доказать результат.
+`repo-doctor` обнаружит несоответствие.
 
 ---
 
-## 8. Выберите уровень риска
+## 11. Human gate
 
-### A — обычная задача
+### Risk A
 
-Примеры:
+Допустимы:
 
-- локальная бизнес-логика;
-- документация;
-- UI;
-- небольшой refactoring.
+```text
+Human gate: required
+```
 
-Требуется:
+или заранее:
 
-- воспроизводимая проверка;
-- self-review;
-- independent clean-context review.
+```text
+Human gate: delegated
+```
 
-Для A human gate может быть заранее `delegated`.
+### Risk B/C
 
-### B — повышенный риск
+Требуется явное подтверждение человека до реализации.
 
-Примеры:
-
-- API contract;
-- внешняя интеграция;
-- миграция данных;
-- concurrency;
-- важная производительность;
-- изменение значимых данных.
-
-Human gate обязателен.
-
-P0/P1 блокируют принятие.
-
-### C — критический риск
-
-Примеры:
-
-- authentication/authorization;
-- секреты;
-- destructive operations;
-- права доступа;
-- финансовая логика;
-- криптография.
-
-Human gate обязателен. Нужен adversarial review, threat model изменения и повторные review rounds до отсутствия открытых P0/P1.
+Опасные или необратимые действия требуют подтверждения независимо от категории.
 
 ---
 
-## 9. Запустите coding agent
+## 12. Запуск coding agent
 
-Рабочая директория должна быть корнем проекта.
-
-### OpenCode
+Из корня repository:
 
 ```bash
-cd <project>
 opencode
-```
-
-В новой сессии дайте агенту `START_PROMPT.md` и укажите Task, например `TASK-1`.
-
-### Codex CLI
-
-```bash
-cd <project>
 codex
-```
-
-Затем используйте тот же `START_PROMPT.md`. Основной процесс не должен зависеть от конкретного CLI.
-
-### Claude Code
-
-```bash
-cd <project>
 claude
 ```
 
-После загрузки контекста можно использовать:
+Общий prompt: [`../START_PROMPT.md`](../START_PROMPT.md).
+
+Claude Code repository commands:
 
 ```text
 /develop
-```
-
-для одной Task или:
-
-```text
 /iterate
 ```
 
-для небольшой архитектурной итерации.
+Для обычной bounded feature Task используйте `/develop`.
 
-### Универсальная стартовая инструкция
+`/iterate` предназначен прежде всего для небольшого изменения архитектуры/плана и не должен автоматически превращаться в большую реализацию.
 
-Если инструмент не поддерживает repository commands, достаточно передать:
+---
+
+## 13. Полный цикл одной Task
 
 ```text
-Изучи AGENTS.md, docs/INDEX.md, ROADMAP/TODO, релевантные документы
-архитектуры и ADR, затем docs/tasks/TASK-1.md.
-Работай только над TASK-1 и следуй docs/process/development-cycle.md.
-Не расширяй scope без явного основания. Не называй непроведённую проверку успешной.
+1. прочитать repository context
+2. выбрать одну Ready Task
+3. показать risk / human gate / AC / plan / verification
+4. получить human approval, если required
+5. добавить test или другой воспроизводимый scenario
+6. реализовать минимальный scope
+7. запустить реальные gates
+8. self-review
+9. implementation commit или фиксированный reviewable HEAD
+10. independent clean-context review
+11. исправить P0/P1 и применимые замечания
+12. заполнить evidence
+13. синхронизировать Task status и TODO
+14. записать telemetry
+15. closure commit / PR
 ```
 
-Полный вариант находится в `START_PROMPT.md`.
+Independent reviewer должен проверять **тот HEAD, который реально будет закрыт**, либо после исправлений нужен повторный review.
 
 ---
 
-## 10. Что агент должен сделать до изменения кода
+## 14. Evidence
 
-До реализации ожидайте краткое резюме:
+Используйте уровни:
 
-- какая Task выбрана;
-- что входит и не входит в scope;
-- Acceptance Criteria;
-- затрагиваемые компоненты;
-- риск A/B/C;
-- human gate policy;
-- способ проверки;
-- короткий план.
+- E0 — изменение создано;
+- E1 — static check / compile / lint;
+- E2 — unit/contract tests;
+- E3 — integration/e2e;
+- E4 — target/production-like environment;
+- E5 — повторяемая реальная эксплуатация.
 
-Для B/C человек должен явно подтвердить направление.
-
-Пример достаточного ответа человека:
+Примеры ошибок:
 
 ```text
-План подтверждаю. Выполняй TASK-17 в указанном scope.
+0 tests + exit 0       ≠ E2
+NOT CONFIGURED         ≠ PASS
+unit serialization     ≠ restart integration
+curl к localhost       ≠ production validation
 ```
-
-Это не означает разрешение на любые соседние изменения.
 
 ---
 
-## 11. Реализация
+## 15. Independent review
 
-Предпочтительная последовательность:
+Self-review не заменяет независимый clean-context review.
+
+Результат сохраняется:
 
 ```text
-Acceptance Criterion
-        ↓
-тест / воспроизводимый сценарий
-        ↓
-ожидаемое падение, если применим TDD
-        ↓
-минимальная реализация
-        ↓
-PASS
+docs/reviews/<TASK-ID>-review.md
 ```
 
-Если TDD неприменим, заранее определите другой детерминированный сигнал успеха.
-
-Во время реализации:
-
-- не исправляйте несвязанные проблемы;
-- не меняйте архитектуру молча;
-- не ослабляйте тесты ради зелёного результата;
-- найденные соседние проблемы заносите в TODO;
-- неизвестные факты не додумывайте.
+Если independent review недоступен, цикл не должен маркироваться `passed`; используйте `partial` или `failed` согласно фактическому состоянию.
 
 ---
 
-## 12. Запустите проверки
+## 16. Telemetry
 
-Минимум:
-
-```bash
-make check
-make test
-```
-
-При необходимости:
-
-```bash
-make test-integration
-```
-
-Служебные проверки шаблона:
-
-```bash
-./scripts/repo-doctor
-make test-template
-```
-
-Записывайте **реальный результат** каждой команды.
-
-Если команда не запускалась, в evidence должно быть написано «не запускалась» и причина.
-
-`NOT CONFIGURED` никогда не является PASS.
-
----
-
-## 13. Self-review
-
-До независимой проверки автор/агент должен просмотреть собственный diff как reviewer.
-
-Проверить:
-
-- нет ли лишних файлов;
-- не вышел ли diff за scope;
-- соблюдены ли invariants и ADR;
-- обработаны ли edge/error cases;
-- достаточно ли негативных тестов;
-- не ослаблены ли tests;
-- нет ли секретов;
-- документация соответствует коду.
-
-Self-review полезен, но **не является independent review**.
-
----
-
-## 14. Independent clean-context review
-
-Создайте **новую сессию** или используйте другого агента/модель без истории реализации.
-
-Передайте reviewer только необходимый контекст:
-
-- Task и Acceptance Criteria;
-- релевантные invariants/ADR;
-- diff или SHA range;
-- фактические результаты проверок.
-
-Используйте `REVIEW_PROMPT.md`.
-
-Результат сохраните:
-
-```text
-docs/reviews/TASK-1-review.md
-```
-
-Шаблон находится в `.ai/templates/REVIEW.md`.
-
-Reviewer должен классифицировать findings как P0/P1/P2/P3 и дать verdict:
-
-```text
-approved
-changes_required
-blocked
-```
-
-### Если independent review временно невозможно выполнить
-
-По умолчанию цикл нельзя записывать как `passed`: используйте `partial`.
-
-Ответственный человек может явно разрешить merge как **исключение из review-gate**. В этом случае:
-
-- решение должно быть записано в PR/Task;
-- review нельзя помечать `approved`;
-- telemetry остаётся `partial`;
-- причина исключения фиксируется явно;
-- для задач C такой путь не следует использовать как обычный механизм.
-
-Подробнее: [`process/code-review.md`](process/code-review.md).
-
----
-
-## 15. Определите уровень доказательства
-
-Используйте [`process/evidence-ladder.md`](process/evidence-ladder.md).
-
-Пример:
-
-```text
-код написан                         → E0
-lint + compile                      → E1
-unit tests                          → E2
-integration tests                   → E3
-проверка на реальной integration    → E4
-наблюдение в эксплуатации           → E5
-```
-
-В Task запишите:
-
-- фактически запущенные команды;
-- результаты;
-- ссылки на артефакты;
-- фактический evidence level;
-- что не проверено;
-- остаточные риски.
-
----
-
-## 16. Проверьте Definition of Done
-
-Откройте:
-
-```text
-docs/process/definition-of-done.md
-```
-
-Task не должна считаться завершённой только потому, что агент написал «готово».
-
-Для `done` должны быть закрыты применимые пункты:
-
-- Acceptance Criteria;
-- project checks;
-- testing/evidence;
-- review;
-- project memory;
-- traceability;
-- telemetry.
-
----
-
-## 17. Обновите project memory
-
-После изменения проверьте, требуется ли обновить:
-
-- Task;
-- TODO;
-- ROADMAP;
-- архитектуру;
-- ADR;
-- operational docs;
-- README.
-
-В репозитории не должно оставаться ситуации, когда код уже изменился, а документы описывают старое состояние.
-
----
-
-## 18. Запишите telemetry
-
-Каждая попытка имеет собственный `cycle_id`, даже если несколько попыток относятся к одной Task.
-
-Пример успешного цикла:
+Минимальная запись:
 
 ```bash
 python3 scripts/record-cycle.py \
   --task TASK-1 \
-  --started 2026-09-01T10:00:00Z \
-  --ended 2026-09-01T10:40:00Z \
-  --result passed \
-  --risk A \
-  --provider openai \
-  --model example-model \
-  --review-rounds 1 \
-  --review-p0 0 \
-  --review-p1 0 \
-  --evidence docs/tasks/TASK-1.md
+  --started <ISO-8601> \
+  --ended <ISO-8601> \
+  --result passed
 ```
 
-Если работа остановлена или review не завершён:
+Добавляйте только реально известные поля:
 
-```text
---result partial
+```bash
+--risk A
+--model <known-model>
+--provider <known-provider>
+--review-rounds 1
+--review-p0 0
+--review-p1 0
+--evidence docs/tasks/TASK-1.md
 ```
 
-Если попытка закончилась ошибкой:
-
-```text
---result failed
-```
-
-Не удаляйте такие строки: rework и failed cycles нужны для честной статистики.
+Не угадывайте model/provider, token usage, cost или human time.
 
 После записи:
 
@@ -690,109 +424,82 @@ make telemetry-check
 make telemetry-summary
 ```
 
-Скрипт автоматически фиксирует доступные Git-данные; ручные метрики указывайте только если они реально известны.
-
 ---
 
-## 19. Commit и Pull Request
+## 17. Финальная проверка Task
 
-Рекомендуется, чтобы один завершённый цикл соответствовал одному логически связанному commit или небольшому PR.
-
-Пример:
+Перед closure:
 
 ```bash
-git status
-git diff
-git add -A
-git commit -m "TASK-1 implement item creation"
-git push -u origin <branch>
+./scripts/repo-doctor
+make check
+make test
+make test-template
+make telemetry-check
 ```
 
-PR должен отвечать минимум на вопросы:
+Если integration gate уже настроен и применим:
 
-1. Какую Task решает?
-2. Что изменилось?
-3. Какие Acceptance Criteria закрыты?
-4. Какие проверки реально выполнены?
-5. Какой evidence level достигнут?
-6. Где independent review artifact?
-7. Что осталось непроверенным?
-8. Какой остаточный риск?
+```bash
+make test-integration
+```
 
-CI не заменяет independent review: это разные источники evidence.
+Если ещё нет, expected `NOT CONFIGURED` должен быть явно отражён в evidence и не засчитываться как успешный gate.
 
 ---
 
-## 20. Ежедневный цикл после первичной настройки
+## 18. Что подтвердил полный demo dry-run
 
-Когда проект уже настроен, обычная работа выглядит значительно короче:
+Отдельный Mini Task Board repository прошёл:
 
 ```text
-1. git pull
-2. прочитать/актуализировать TODO и Task
-3. ./scripts/new-task ... при необходимости
-4. открыть coding agent из корня repo
-5. выполнить одну Task
-6. make check && make test
-7. self-review
-8. independent review
-9. заполнить evidence/DoD
-10. record-cycle.py
-11. commit / PR
+bootstrap
+DEMO-1 read-only
+DEMO-2 validated write + required human gate
+DEMO-3 persistence + restart integration
+DEMO-4 done/filter/counters
 ```
 
-Не нужно каждый день переписывать архитектуру или заново конфигурировать шаблон.
+В финальном состоянии были подтверждены product, template tooling и integration test suites, independent review каждой Task, telemetry каждого цикла и Git checkpoints.
+
+Именно этот прогон выявил hardening, описанный выше.
+
+Полная инструкция: [`workshop/real-repository-dry-run.md`](workshop/real-repository-dry-run.md).
 
 ---
 
-## 21. Частые ошибки
+## 19. Что не делать
 
-### «Я запустил `make test`, он написал NOT CONFIGURED»
+Не:
 
-Это означает, что реальная команда тестов ещё не настроена. Исправьте `Makefile`.
-
-### «Агент знает контекст из прошлого чата»
-
-Не полагайтесь на это. Важное решение должно быть в Task, ADR, архитектуре или другом tracked document.
-
-### «Пусть агент сам выберет, что делать дальше»
-
-Он может предложить следующую Task, но перед реализацией scope и Acceptance Criteria должны быть явными.
-
-### «Тесты прошли, значит задача полностью проверена»
-
-Не обязательно. Unit tests дают максимум соответствующий уровень evidence; они не доказывают live integration или эксплуатационное поведение.
-
-### «Reviewer — тот же агент в конце одной длинной сессии»
-
-Это self-review. Independent review требует clean context.
-
-### «Review завис, давайте просто считать его approved»
-
-Нет. Либо review завершается, либо человек явно фиксирует исключение. Исключение не превращается в approved review задним числом.
-
-### «В ходе Task нашёл ещё пять проблем и сразу исправил»
-
-Обычно это scope creep. Зафиксируйте их в TODO и выполните отдельными циклами.
+- начинать feature-разработку до initialization/bootstrap;
+- считать source `TEMPLATE-*` Tasks историей нового проекта;
+- смешивать product и template tooling tests;
+- превращать zero-test discovery в зелёный gate;
+- делать integration target зелёным до настоящего integration scenario;
+- оставлять `TODO Ready` при `Task status: planned`;
+- завышать evidence level;
+- переписывать старые telemetry rows вместо append-only истории;
+- поручать агенту «сделать весь проект» одной неограниченной задачей.
 
 ---
 
-## 22. Минимальный checklist запуска нового проекта
+## 20. Короткий checklist
 
-Перед первой продуктовой Task убедитесь:
+Перед первой feature Task:
 
-- [ ] репозиторий создан из шаблона;
-- [ ] `repo-doctor` проходит;
-- [ ] `make test-template` проходит;
-- [ ] `make check` настроен и реально выполняет проверки;
-- [ ] `make test` настроен и реально выполняет тесты;
-- [ ] `architecture/overview.md` описывает фактическую систему;
-- [ ] `architecture/invariants.md` содержит реальные правила проекта;
-- [ ] ROADMAP и TODO адаптированы;
-- [ ] первая Task имеет scope и Acceptance Criteria;
-- [ ] риск и human gate определены;
-- [ ] coding agent запускается из корня репозитория;
-- [ ] команда знает, где хранить independent review;
-- [ ] telemetry validation работает.
+```text
+[ ] scripts/init-project выполнен
+[ ] inherited source Tasks/telemetry очищены
+[ ] bootstrap Task закрыта
+[ ] architecture описывает фактическое состояние
+[ ] invariants реальны
+[ ] TODO и Task statuses согласованы
+[ ] make check выполняет реальную работу
+[ ] make test запускает реальные product tests
+[ ] make test-template запускает только reusable tooling tests
+[ ] integration gate либо настоящий, либо честно NOT CONFIGURED
+[ ] telemetry нового проекта содержит только его собственные cycles
+```
 
-После этого проект готов к нормальному agentic development workflow.
+После этого repository готов к управляемой agentic development.
