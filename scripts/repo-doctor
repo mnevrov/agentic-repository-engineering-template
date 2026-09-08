@@ -18,6 +18,7 @@ required=(
   .ai/templates/TASK.md
   .ai/templates/REVIEW.md
   .ai/schemas/cycle.schema.json
+  scripts/init-project
   scripts/check-task-state.py
   scripts/check-telemetry-append-only.py
   scripts/check-telemetry-required.py
