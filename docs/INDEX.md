@@ -45,6 +45,7 @@
 - [`workshop/`](workshop/) — демонстрационные материалы.
 - [`workshop/team-demo-scenario.md`](workshop/team-demo-scenario.md) — рекомендуемый сценарий командной презентации на 15 минут с несколькими итерациями.
 - [`workshop/demo-project.md`](workshop/demo-project.md) — спецификация демонстрационного Mini Task Board, Task DEMO-1…DEMO-4 и checkpoints.
+- [`workshop/real-repository-dry-run.md`](workshop/real-repository-dry-run.md) — подробный контрольный прогон на отдельном реальном репозитории: bootstrap, четыре итерации, review/evidence/telemetry, checkpoints, CI и timed rehearsal.
 - [`workshop/10-minute-demo.md`](workshop/10-minute-demo.md) — сокращённая демонстрация механики template без live-разработки нескольких фич.
 
 ## Актуализация
