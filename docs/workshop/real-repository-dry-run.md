@@ -1,84 +1,63 @@
 # Контрольный прогон на реальном репозитории
 
-Эта инструкция описывает, как **один раз полностью пройти Agentic Repository Engineering Template на отдельном настоящем Git-репозитории**, а затем использовать получившийся репозиторий для репетиции командной демонстрации.
+Эта инструкция описывает полный validated dry-run Agentic Repository Engineering Template на отдельном downstream repository и последующую репетицию командной демонстрации.
 
-Цель прогона — не просто получить работающий Mini Task Board. Нужно проверить, что весь процесс действительно работает на практике:
+Dry-run нужен не только для получения Mini Task Board. Он проверяет сам инженерный процесс:
 
-- новый проект можно создать из template без скрытых ручных шагов;
-- агент восстанавливает контекст из Git;
-- project gates не дают ложный PASS;
-- одна Task действительно ограничивает scope;
-- human gate срабатывает там, где должен;
-- acceptance criteria можно подтвердить воспроизводимыми проверками;
-- independent review отделён от self-review;
-- evidence соответствует фактической силе проверки;
-- telemetry остаётся append-only и проходит CI;
-- после нескольких итераций новый агент понимает текущее состояние проекта;
-- Git checkpoints позволяют безопасно провести презентацию даже при проблемах с моделью или сетью.
+- downstream initialization действительно отделяет source template history;
+- новый агент восстанавливает контекст из Git;
+- project gates не дают zero-work/zero-test false-green;
+- одна Task ограничивает scope;
+- human gate реально останавливает Risk B/C до подтверждения;
+- independent review работает с clean context;
+- evidence соответствует силе проверки;
+- telemetry содержит только реальные project cycles;
+- Git checkpoints позволяют воспроизводить каждую итерацию.
 
 Связанные документы:
 
-- [`demo-project.md`](demo-project.md) — фиксированная спецификация Mini Task Board и DEMO-1…DEMO-4;
-- [`team-demo-scenario.md`](team-demo-scenario.md) — рекомендуемый сценарий 15-минутного выступления;
-- [`../GETTING_STARTED.md`](../GETTING_STARTED.md) — общий onboarding шаблона.
+- [`demo-project.md`](demo-project.md) — спецификация Mini Task Board;
+- [`team-demo-scenario.md`](team-demo-scenario.md) — сценарий выступления;
+- [`../GETTING_STARTED.md`](../GETTING_STARTED.md) — общий onboarding.
 
 ---
 
-# 1. Два разных вида прогона
+# 1. Два разных прогона
 
-Не смешивайте их.
+## 1.1. Полный engineering dry-run
 
-## 1.1. Полный контрольный прогон
-
-Проводится один раз при подготовке demo repository.
-
-В нём:
-
-- создаётся настоящий новый репозиторий из template;
-- bootstrap выполняется как отдельный цикл;
-- DEMO-1…DEMO-4 реально выполняются последовательно;
-- запускаются настоящие проверки;
-- создаются реальные commits/PR или эквивалентные зафиксированные циклы;
-- создаются review artifacts;
-- записывается реальная telemetry;
-- фиксируются demo checkpoints.
-
-Это проверка **самого инженерного процесса**.
-
-## 1.2. Репетиция выступления
-
-Проводится после полного прогона.
-
-В ней:
-
-- не нужно повторно генерировать все четыре фичи;
-- стартуем с заранее подготовленных checkpoints;
-- только DEMO-2 можно повторить live;
-- проверяем тайминг, переключение между терминалом/браузером/Git;
-- проверяем Plan B;
-- измеряем, укладывается ли демонстрация в 15 минут.
-
-Это проверка **устойчивости презентации**.
-
----
-
-# 2. Ожидаемый конечный результат
-
-После полного прогона должен существовать отдельный GitHub repository, например:
+Выполняется один раз:
 
 ```text
-agentic-template-demo
+downstream init
+→ bootstrap
+→ DEMO-1
+→ DEMO-2
+→ DEMO-3
+→ DEMO-4
+→ reviews/evidence/telemetry
+→ checkpoints
 ```
 
-В нём должны быть:
+## 1.2. Timed rehearsal
+
+Проводится после успешного engineering dry-run.
+
+Для выступления не нужно повторно генерировать все фичи. Рекомендуемый live segment — DEMO-2 от checkpoint `demo/01-read-board`; остальные состояния показываются через заранее проверенные tags.
+
+---
+
+# 2. Проверенный конечный результат
+
+После полного прогона downstream repository должен содержать:
 
 ```text
 AGENTS.md
-CLAUDE.md
 README.md
 Makefile
 src/taskboard/...
 tests/...
+template_tests/...
 docs/architecture/...
 docs/backlog/...
 docs/tasks/DEMO-BOOTSTRAP.md
@@ -90,7 +69,7 @@ docs/reviews/...
 .ai/telemetry/cycles.jsonl
 ```
 
-и Git checkpoints:
+Checkpoints:
 
 ```text
 demo/00-bootstrap
@@ -100,13 +79,11 @@ demo/03-persistence
 demo/04-finished
 ```
 
-Финальное приложение должно запускаться локально и визуально показывать результат всех четырёх итераций.
-
 ---
 
-# 3. Что понадобится
+# 3. Требования
 
-На машине ведущего заранее должны работать:
+Проверьте:
 
 ```bash
 git --version
@@ -114,46 +91,28 @@ python3 --version
 make --version
 ```
 
-Рекомендуется Python 3.11+.
+Для Mini Task Board достаточно **Python 3.10+**. Реальный dry-run успешно выполнен на Python 3.10; код demo не требует 3.11-specific возможностей.
 
-Также должен быть установлен хотя бы один coding agent:
+Также нужен coding agent, например OpenCode, Codex CLI или Claude Code.
 
-- OpenCode;
-- Codex CLI;
-- Claude Code;
-- другой агент, способный читать и менять файлы Git repository.
-
-Для контрольного прогона лучше использовать **тот же инструмент, который планируется показывать команде**.
-
-Если на выступлении предполагается OpenCode — полный dry-run также лучше сделать через OpenCode.
+Для воспроизводимости используйте в dry-run тот же инструмент, который планируется показывать команде.
 
 ---
 
-# 4. Создание реального demo repository
+# 4. Создайте downstream repository
 
-## Вариант A — через GitHub Template
+## GitHub Template
 
-Это предпочтительный вариант, потому что именно его будет использовать команда.
-
-1. Откройте `agentic-repository-engineering-template`.
-2. Нажмите **Use this template**.
-3. Создайте новый repository, например:
-
-```text
-agentic-template-demo
-```
-
-4. Репозиторий можно сделать private, если он нужен только для внутренней репетиции.
-5. Клонируйте его:
+1. Нажмите **Use this template**.
+2. Создайте `agentic-template-demo`.
+3. Клонируйте новый repository.
 
 ```bash
 git clone <URL-DEMO-REPOSITORY>
 cd agentic-template-demo
 ```
 
-## Вариант B — локальная копия
-
-Используйте только если GitHub Template пока недоступен:
+## Локальная копия
 
 ```bash
 git clone https://github.com/mnevrov/agentic-repository-engineering-template.git agentic-template-demo
@@ -162,31 +121,47 @@ rm -rf .git
 git init
 ```
 
-После этого настройте `origin` на новый пустой repository.
+---
+
+# 5. Выполните downstream initialization
+
+Это обязательный шаг. GitHub Template копирует tracked source files, включая историю разработки самого template.
+
+Для demo:
+
+```bash
+./scripts/init-project "Mini Task Board" \
+  --bootstrap-id DEMO-BOOTSTRAP \
+  --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
+```
+
+Проверьте:
+
+```bash
+ls docs/tasks
+wc -l .ai/telemetry/cycles.jsonl
+```
+
+Ожидаемо:
+
+- `TEMPLATE-*` и `EXAMPLE-1` отсутствуют;
+- существует `DEMO-BOOTSTRAP.md`;
+- source telemetry очищена;
+- README/architecture/ROADMAP/TODO больше не заявляют source template history как project state.
 
 ---
 
-# 5. Сохраните исходное состояние
-
-Сразу после создания:
-
-```bash
-git status
-git log --oneline --max-count=5
-```
-
-Рабочее дерево должно быть чистым.
-
-Запустите только template checks:
+# 6. Проверьте исходный fail-closed contract
 
 ```bash
 ./scripts/repo-doctor
 make test-template
+make telemetry-check
 ```
 
-Ожидаемо обе команды проходят.
+Эти команды должны PASS.
 
-Теперь специально выполните:
+Project gates до bootstrap:
 
 ```bash
 make check
@@ -194,167 +169,203 @@ make test
 make test-integration
 ```
 
-В нетронутом template они должны завершиться примерно так:
+должны завершиться `NOT CONFIGURED` с ненулевым кодом.
 
-```text
-NOT CONFIGURED: ...
-```
-
-с ненулевым кодом.
-
-Это **успешная проверка fail-closed поведения**, а не дефект.
-
-Зафиксируйте для себя:
-
-```text
-[PASS] template tooling работает
-[PASS] project gates ещё не настроены и не дают ложный зелёный результат
-```
-
-Если `make check` или `make test` возвращают 0 до настройки проекта — остановите прогон: template contract нарушен.
+Если `make check` или `make test` дают 0 до настройки реальной проверки — остановите dry-run: contract нарушен.
 
 ---
 
-# 6. Bootstrap как отдельный цикл
+# 7. Bootstrap — отдельная Task
 
-Bootstrap — тоже содержательное изменение repository. Не выполняйте его «вне процесса».
-
-Создайте Task:
-
-```bash
-./scripts/new-task DEMO-BOOTSTRAP "Подготовить Mini Task Board к продуктовым итерациям"
-```
-
-Откройте:
+`scripts/init-project` уже создал:
 
 ```text
 docs/tasks/DEMO-BOOTSTRAP.md
 ```
 
-Заполните минимум:
+Task имеет:
 
 ```text
 Risk: A
 Human gate: delegated
+Status: ready
 ```
 
-## Acceptance Criteria bootstrap
+Переведите её в `in progress` одновременно в Task и TODO перед началом работы.
 
-Рекомендуемый набор:
+Bootstrap должен:
 
-- [ ] `make check` выполняет реальную проверку Python исходников;
-- [ ] `make test` запускает unit tests;
-- [ ] `make test-integration` запускает integration tests;
-- [ ] заполнено `docs/architecture/overview.md`;
-- [ ] заполнены реальные demo invariants;
-- [ ] созданы DEMO-1…DEMO-4;
-- [ ] ROADMAP/TODO отражают порядок DEMO-1 → DEMO-4;
-- [ ] runtime data исключены из Git;
-- [ ] `repo-doctor`, `make test-template`, `make check`, `make test` проходят.
+- настроить реальные `make check` и `make test`;
+- оставить `make test-integration` fail-closed до DEMO-3;
+- создать минимум один настоящий product smoke test;
+- заполнить architecture overview/invariants;
+- создать DEMO-1…DEMO-4;
+- обновить ROADMAP/TODO;
+- добавить runtime data в `.gitignore`;
+- подтвердить, что product tests и template tooling tests разделены.
 
 ---
 
-# 7. Настройте project gates
+# 8. Настройте честные project gates
 
-Для Mini Task Board достаточно стандартной библиотеки Python.
-
-В `Makefile` замените placeholders, например на:
+Для demo можно использовать:
 
 ```make
 check:
+	@[ -d src ] && [ -d tests ] || \
+		{ echo "NOT CONFIGURED: expected src/ and tests/ directories" >&2; exit 2; }
+	@find src tests -type f -name '*.py' -print -quit | grep -q . || \
+		{ echo "NOT CONFIGURED: no Python sources found in src/ or tests/" >&2; exit 2; }
 	python3 -m compileall -q src tests
 
 test:
+	@find tests -maxdepth 1 -type f -name 'test_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: add at least one project test" >&2; exit 2; }
 	python3 -m unittest discover -s tests -p 'test_*.py'
 
 test-integration:
-	python3 -m unittest discover -s tests -p 'test_integration_*.py'
+	@echo "NOT CONFIGURED: integration tests are not implemented yet" >&2
+	@exit 2
 ```
 
-Важно: не используйте команду вида:
+`test-template` оставьте отдельным reusable target:
 
 ```make
-check:
-	@echo PASS
+test-template:
+	@[ -d template_tests ] || \
+		{ echo "NOT CONFIGURED: template_tests/ directory is missing" >&2; exit 2; }
+	@find template_tests -maxdepth 1 -type f -name 'test_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: no template tooling tests found" >&2; exit 2; }
+	python3 -m unittest discover -s template_tests -p 'test_*.py'
 ```
 
-Это снова создаст false-green gate.
+## Почему guards обязательны
 
-После изменения:
+`unittest discover` может вернуть exit 0 при нуле найденных тестов. Поэтому команда вида:
+
+```make
+test:
+	python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+сама по себе ещё не гарантирует, что gate что-то проверил.
+
+---
+
+# 9. Bootstrap smoke test
+
+Создайте package skeleton и хотя бы один реальный product test:
+
+```bash
+mkdir -p src/taskboard
+: > src/taskboard/__init__.py
+
+cat > tests/test_bootstrap.py <<'PY'
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+import taskboard
+
+
+class BootstrapTests(unittest.TestCase):
+    def test_taskboard_package_can_be_imported(self):
+        self.assertIsNotNone(taskboard)
+
+
+if __name__ == "__main__":
+    unittest.main()
+PY
+```
+
+Теперь:
 
 ```bash
 make check
 make test
+make test-template
 ```
 
-На bootstrap-этапе допустимо иметь минимальные smoke tests, но команды должны реально что-то проверять.
+должны PASS.
+
+А:
+
+```bash
+make test-integration
+echo $?
+```
+
+должен вернуть `NOT CONFIGURED`, exit 2.
+
+Это **правильное bootstrap состояние**, а не незавершённый тест.
 
 ---
 
-# 8. Заполните project memory
+# 10. Заполните project memory
 
-## 8.1. Architecture overview
+## Architecture overview
 
-В `docs/architecture/overview.md` опишите фактическую систему:
+Опишите целевую схему:
 
 ```text
 Browser
    |
    v
-HTTP handler
+HTTP application
    |
-   v
-TaskStore
+   +----> HTML rendering
    |
-   v
-.demo-data/tasks.json
+   +----> TaskStore
+              |
+              v
+      .demo-data/tasks.json
 ```
 
-Явно разделите:
+Но отдельно зафиксируйте фактическое bootstrap состояние: HTTP app, TaskStore и persistence ещё не реализованы.
 
-- что существует уже сейчас;
-- что будет добавлено в DEMO-1…DEMO-4.
+## Invariants
 
-## 8.2. Architecture invariants
-
-Зафиксируйте минимум:
+Минимум:
 
 1. пользовательский ввод HTML-escaped;
-2. пустое название задачи не сохраняется;
-3. изменение данных идёт через TaskStore;
+2. пустой title не сохраняется;
+3. после появления TaskStore mutations идут через него;
 4. persistence использует atomic replace;
-5. повреждённый JSON не приводит к silent reset;
-6. HTTP server слушает только `127.0.0.1`.
+5. corrupt JSON не приводит к silent reset;
+6. server слушает только `127.0.0.1`;
+7. `.demo-data/` не хранится в Git;
+8. gates не дают zero-work false PASS;
+9. документация не описывает будущее как уже существующее.
 
-## 8.3. ROADMAP
-
-Пример:
-
-```text
-Milestone 1 — Read-only board
-Milestone 2 — Validated write flow
-Milestone 3 — Durable storage
-Milestone 4 — Finished demo UX
-```
-
-## 8.4. TODO
+## Backlog
 
 После bootstrap:
 
 ```text
-## Ready
+Ready:
+  DEMO-1
 
-- [ ] DEMO-1 — показать список задач
-- [ ] DEMO-2 — добавить создание задачи
-- [ ] DEMO-3 — persistence между перезапусками
-- [ ] DEMO-4 — завершение и фильтры
+Planned:
+  DEMO-2
+  DEMO-3
+  DEMO-4
 ```
+
+И обязательно:
+
+```text
+DEMO-1 Task status = ready
+DEMO-2/3/4 Task status = planned
+```
+
+`repo-doctor` проверит согласованность.
 
 ---
 
-# 9. Создайте четыре Task
-
-Используйте:
+# 11. Создайте DEMO-1…DEMO-4
 
 ```bash
 ./scripts/new-task DEMO-1 "Показать список задач"
@@ -365,1214 +376,298 @@ Milestone 4 — Finished demo UX
 
 Acceptance Criteria берите из [`demo-project.md`](demo-project.md).
 
-Не сокращайте их перед контрольным прогоном: смысл dry-run в том, чтобы проверить реальный contract Task → implementation → evidence.
+Риски:
+
+```text
+DEMO-1  A / delegated / E2
+DEMO-2  B / required  / E2
+DEMO-3  B / required  / E3
+DEMO-4  A / delegated / E2/E3
+```
 
 ---
 
-# 10. Завершите bootstrap
-
-Запустите:
-
-```bash
-./scripts/repo-doctor
-make test-template
-make check
-make test
-make telemetry-check
-```
-
-Если integration tests пока отсутствуют, `make test-integration` всё равно должен запускать реальную test discovery и завершаться корректно.
-
-Проведите self-review bootstrap diff:
-
-```bash
-git diff
-```
+# 12. Закройте bootstrap полным циклом
 
 Проверьте:
 
-- placeholders в Makefile действительно удалены;
-- документация описывает Mini Task Board, а не generic template;
-- нет продуктовой реализации DEMO-1;
-- `.demo-data/` исключена из Git.
+```bash
+./scripts/repo-doctor
+make check
+make test
+make test-template
+make telemetry-check
 
-Запишите цикл telemetry согласно `docs/process/telemetry.md`.
+make test-integration
+echo $?
+```
 
-После этого:
+Integration ожидаемо exit 2.
+
+Сделайте implementation/bootstrap commit, затем clean-context independent review текущего HEAD.
+
+Если review приводит к изменениям, reviewer должен повторно проверить новый HEAD.
+
+После approved review:
+
+- `DEMO-BOOTSTRAP` → `done`;
+- TODO переносит bootstrap в Done;
+- записывается собственная telemetry row;
+- делается closure commit;
+- ставится tag:
 
 ```bash
-git add -A
-git commit -m "DEMO-BOOTSTRAP prepare task board project"
 git tag demo/00-bootstrap
 ```
 
-Если используется remote:
-
-```bash
-git push origin HEAD
-git push origin demo/00-bootstrap
-```
-
-## Контрольная точка
-
-```bash
-git status
-```
-
-Ожидаемо:
-
-```text
-working tree clean
-```
+Tag ставится **после** review/evidence/telemetry closure, не до него.
 
 ---
 
-# 11. Принцип проведения DEMO-1…DEMO-4
+# 13. DEMO-1…DEMO-4: используйте один и тот же цикл
 
-Для каждой Task повторяется один и тот же шаблон:
+Для каждой Task:
 
 ```text
-1. новая/чистая сессия агента
-2. восстановление repository context
-3. выбор только одной Task
-4. план + risk + AC + verification
-5. human gate, если required
-6. реализация
-7. реальные checks/tests
+1. clean/new agent session
+2. repository context recovery
+3. одна Ready Task
+4. plan + risk + human gate + AC + verification
+5. approval для B/C
+6. minimal implementation
+7. real tests/checks
 8. self-review
-9. independent review
-10. evidence
-11. update Task/TODO
-12. telemetry
-13. commit
-14. tag checkpoint
+9. implementation commit / fixed reviewable HEAD
+10. independent clean-context review
+11. fixes + repeat review when HEAD changed materially
+12. evidence
+13. Task/TODO state sync
+14. telemetry
+15. closure commit
+16. checkpoint tag
 ```
 
-Не пропускайте шаги на первом полном dry-run, даже если они кажутся избыточными для маленького demo.
-
-Именно сейчас проверяется методика.
+Для Claude Code используйте `/develop`. Для других agents можно использовать `START_PROMPT.md` с тем же repository contract.
 
 ---
 
-# 12. DEMO-1 — read-only board
+# 14. DEMO-1 — read-only board
 
-Вернитесь к bootstrap checkpoint:
+Ожидаемый scope:
 
-```bash
-git checkout main
-```
+- `GET /` → 200;
+- `Mini Task Board`;
+- три seed tasks;
+- title + priority;
+- HTML escaping;
+- bind только `127.0.0.1`.
 
-Убедитесь, что `DEMO-1` — первая Ready Task.
+Не входит:
 
-Запустите **новую** сессию coding agent из корня repository.
+- create;
+- persistence;
+- status mutation;
+- filters.
 
-Первый prompt:
-
-```text
-Следуй AGENTS.md и project memory в Git.
-Найди следующую готовую Task.
-Сначала покажи:
-- Task ID и название;
-- scope;
-- Acceptance Criteria;
-- risk и human gate;
-- затрагиваемые компоненты;
-- короткий план;
-- какие проверки будут доказательством результата.
-Код до этого не меняй.
-```
-
-## Что проверяем в поведении агента
-
-До изменения кода он должен:
-
-- найти DEMO-1;
-- не предлагать сразу DEMO-2…4;
-- прочитать architecture/invariants;
-- назвать read-only scope;
-- назвать `make check` и `make test`;
-- не заявлять о persistence/create flow.
-
-Если агент пытается сделать весь Task Board целиком — остановите его.
-
-Запишите это как наблюдение dry-run.
-
-### Для DEMO-1
-
-Risk A может иметь:
-
-```text
-Human gate: delegated
-```
-
-Поэтому после корректного плана агент может продолжить без отдельного подтверждения, если Task это явно разрешает.
-
-После реализации выполните или проверьте вывод агента:
+Проверки:
 
 ```bash
 make check
 make test
 ```
 
-Затем вручную запустите приложение.
-
-Рекомендуемая команда должна быть зафиксирована в README demo repository, например:
+Live:
 
 ```bash
-python3 -m taskboard.app
+PYTHONPATH=src python3 -m taskboard.app
+curl -i http://127.0.0.1:8000/
+ss -ltnp | grep 8000
 ```
 
-или эквивалентная реальная команда проекта.
-
-Откройте:
-
-```text
-http://127.0.0.1:8000
-```
-
-Должны отображаться три seed-задачи.
-
-Проверьте отдельно HTML escaping тестом.
-
----
-
-# 13. Review DEMO-1
-
-Self-review выполняет author session.
-
-Independent review выполняйте:
-
-- в новой clean-context сессии;
-- по возможности другой моделью;
-- либо другим reviewer-инструментом.
-
-Передайте reviewer только:
-
-- `docs/tasks/DEMO-1.md`;
-- architecture invariants;
-- diff;
-- реальные результаты checks/tests.
-
-Используйте `REVIEW_PROMPT.md`.
-
-Сохраните результат:
-
-```text
-docs/reviews/DEMO-1-review.md
-```
-
-Для DEMO-1 допустим `approved` при отсутствии блокирующих findings.
-
-После review обновите Task evidence.
-
-Запишите telemetry.
-
-Коммит:
+После approved review/evidence/telemetry:
 
 ```bash
-git add -A
-git commit -m "DEMO-1 render task board"
 git tag demo/01-read-board
 ```
-
-Запушьте branch/tag.
-
----
-
-# 14. Проверка смены сессии после DEMO-1
-
-Это обязательный тест template philosophy.
-
-Полностью закройте author session.
-
-Откройте новый coding agent session.
-
-Не пересказывайте ему историю.
-
-Дайте только:
-
-```text
-Изучи репозиторий.
-Кратко скажи:
-1. что уже реализовано;
-2. какая следующая Ready Task;
-3. её risk/human gate;
-4. какие архитектурные ограничения для неё важны;
-5. чем она должна быть проверена.
-Код не меняй.
-```
-
-Ожидаемо:
-
-```text
-DEMO-1 done
-DEMO-2 next
-risk B
-human gate required
-нужна validation positive/negative cases
-```
-
-Если новый агент не может это восстановить без прошлого чата — зафиксируйте пробел в project memory и исправьте документацию **до дальнейших итераций**.
-
-Это один из главных критериев успешного dry-run.
 
 ---
 
 # 15. DEMO-2 — validated create flow
 
-Это наиболее важная итерация для будущей live-презентации.
+Risk B, human gate required.
 
-Запускайте её особенно аккуратно.
+Агент **до изменения кода** должен показать план и остановиться на подтверждении.
 
-Task должна содержать:
+Acceptance Criteria:
 
-```text
-Risk: B
-Human gate: required
-```
+- valid task добавляется;
+- blank/whitespace title отклоняется;
+- title > 80 отклоняется;
+- unknown priority отклоняется;
+- input escaped;
+- DEMO-1 regression не ломается.
 
-## Ожидаемое поведение агента
-
-Он должен остановиться после плана.
-
-Ожидаемый план примерно такой:
-
-```text
-1. Добавить form/POST handler.
-2. Выделить validation.
-3. Проверить empty/whitespace title.
-4. Проверить >80 chars.
-5. Проверить invalid priority.
-6. Сохранить DEMO-1 read behavior.
-7. Запустить make check и make test.
-```
-
-До подтверждения не должно быть изменений файлов.
-
-Проверьте:
+После closure:
 
 ```bash
-git status
-```
-
-Если файлы уже изменены до human gate — отметьте это как FAIL процесса.
-
-Подтверждение:
-
-```text
-План подтверждаю. Выполняй только DEMO-2.
-```
-
-## Acceptance-проверка
-
-После реализации:
-
-```bash
-make check
-make test
-```
-
-Запустите приложение.
-
-В браузере:
-
-1. создайте `Подготовить демонстрацию`;
-2. убедитесь, что задача появилась;
-3. отправьте пустое название;
-4. убедитесь, что состояние не изменилось;
-5. попробуйте значение >80 символов;
-6. убедитесь, что оно отклоняется;
-7. при наличии прямого HTTP теста проверьте invalid priority.
-
-### Evidence
-
-Для DEMO-2 ожидаемо:
-
-```text
-E2
-```
-
-потому что positive/negative behavior подтверждён автоматическими unit/contract tests.
-
-Ручной браузерный показ полезен, но сам по себе не повышает evidence автоматически до E3.
-
----
-
-# 16. Review DEMO-2
-
-Independent reviewer должен обратить внимание на:
-
-- HTML escaping;
-- server-side validation;
-- отсутствие обхода validation прямым POST;
-- regression DEMO-1;
-- соответствие фактических тестов заявленным AC.
-
-Сохраните:
-
-```text
-docs/reviews/DEMO-2-review.md
-```
-
-Если найдены P1/P0 — исправьте их и повторите review согласно процессу risk B.
-
-После закрытия findings:
-
-- обновите Task;
-- обновите TODO;
-- запишите telemetry;
-- сделайте commit.
-
-```bash
-git add -A
-git commit -m "DEMO-2 add validated task creation"
 git tag demo/02-create-task
 ```
 
-Этот checkpoint **обязателен**, потому что именно с него удобно спасать live-демонстрацию.
+Это лучший live segment презентации: видимая feature + mandatory human gate.
 
 ---
 
-# 17. Контрольный тест DEMO-2 как live-фрагмента
+# 16. DEMO-3 — persistence и настоящий integration gate
 
-До перехода к DEMO-3 выполните маленькую репетицию.
+Risk B, evidence E3.
 
-1. Вернитесь на:
+Здесь впервые появляется реальный `make test-integration`.
 
-```bash
-git checkout demo/01-read-board
-```
+Scope:
 
-2. Запустите новую agent session.
-3. Дайте тот же короткий prompt будущей презентации.
-4. Засеките время до появления корректного плана.
-5. Не обязательно повторно ждать полную генерацию: цель — проверить, что агент быстро восстанавливает context и human gate выглядит понятно.
-
-Запишите:
-
-```text
-Время до Task/risk/plan: ___
-Время до human gate: ___
-```
-
-Если уже на этом этапе live-фрагмент занимает больше 3–4 минут до начала реализации, на выступлении используйте более короткий prompt или сильнее подготовленный checkpoint.
-
-После мини-репетиции вернитесь на main/последний commit.
-
----
-
-# 18. DEMO-3 — persistence
-
-Эта итерация проверяет наиболее важную часть evidence ladder в demo.
-
-Task:
-
-```text
-Risk: B
-Human gate: required
-Expected evidence: E3
-```
-
-До реализации агент должен назвать как минимум:
-
-- TaskStore abstraction;
+- TaskStore;
 - JSON persistence;
-- atomic replace;
-- corrupt data behavior;
-- restart integration test.
+- load on start;
+- temporary file + atomic replace;
+- corrupt JSON explicit failure;
+- integration `create → restart → read`.
 
-Если предлагается просто `open(..., 'w')` без atomic strategy — план не подтверждайте.
+Только на этой итерации замените fail-closed placeholder:
 
-## Unit tests
+```make
+test-integration:
+	@find tests -maxdepth 1 -type f -name 'test_integration_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: integration tests are not implemented yet" >&2; exit 2; }
+	python3 -m unittest discover -s tests -p 'test_integration_*.py'
+```
 
-Минимум:
+После этого `make test-integration` обязан PASS с реально найденным integration test.
 
-- serialize/deserialize valid tasks;
-- invalid/corrupt JSON behavior;
-- atomic write path;
-- TaskStore API.
-
-## Integration test
-
-Обязательный flow:
+Live evidence:
 
 ```text
 create task
-→ terminate application/store instance
-→ create a new instance / restart
-→ read task
-→ task exists
+→ stop server
+→ start server
+→ task remains
 ```
 
-Именно он даёт основание заявлять E3 для persistence flow.
-
----
-
-# 19. Ручная restart-проверка DEMO-3
-
-После автоматических tests:
-
-1. удалите старые demo runtime data либо используйте чистую временную директорию;
-2. запустите приложение;
-3. создайте:
-
-```text
-Задача переживает restart
-```
-
-4. остановите процесс `Ctrl+C`;
-5. убедитесь, что JSON существует;
-6. снова запустите приложение;
-7. обновите браузер;
-8. задача должна остаться.
-
-Затем отдельно проверьте corrupt file behavior на тестовом пути, а не на единственном demo data файле.
-
-Ожидаемо приложение:
-
-- сообщает явную ошибку;
-- не превращает corrupted storage в пустой список молча;
-- не перезаписывает повреждённый файл пустым состоянием.
-
----
-
-# 20. Review DEMO-3
-
-Это самый полезный review artifact для выступления.
-
-Reviewer должен проверить:
-
-- atomic replace реализован фактически;
-- temporary file находится на совместимом filesystem path;
-- corrupted JSON не приводит к silent data loss;
-- runtime data не tracked Git;
-- integration test действительно пересоздаёт runtime/store state;
-- заявленный E3 соответствует реальному тесту.
-
-Сохраните:
-
-```text
-docs/reviews/DEMO-3-review.md
-```
-
-На выступлении именно этот файл удобно показать аудитории.
-
-После завершения:
+После closure:
 
 ```bash
-git add -A
-git commit -m "DEMO-3 persist tasks atomically"
 git tag demo/03-persistence
 ```
 
 ---
 
-# 21. DEMO-4 — finished UX
+# 17. DEMO-4 — done/filter/counters
 
-Последняя итерация должна быть маленькой.
+Risk A.
 
-Она не должна превращаться в redesign проекта.
-
-Scope:
+Acceptance Criteria:
 
 - mark done;
-- filters `all/open/done`;
-- counters;
-- regression tests.
+- filters all/open/done;
+- counters open/done;
+- состояние корректно после reload;
+- regression tests проходят.
 
-Не добавляйте:
-
-- пользователей;
-- authentication;
-- REST API «на будущее»;
-- JavaScript framework;
-- database;
-- CSS redesign вне минимально необходимого.
-
-Это хороший тест способности агента соблюдать scope.
-
-Если агент предлагает дополнительную архитектуру — вынесите её как future TODO, но не реализуйте в DEMO-4.
-
-После проверки:
+После closure:
 
 ```bash
-make check
-make test
-make test-integration
-```
-
-Запустите финальное приложение и визуально проверьте:
-
-- counters;
-- filters;
-- done state;
-- create flow;
-- persistence после reload/restart.
-
-После review/evidence/telemetry:
-
-```bash
-git add -A
-git commit -m "DEMO-4 add task filters and counters"
 git tag demo/04-finished
 ```
 
 ---
 
-# 22. Проверка итоговой Git-истории
-
-Выполните:
+# 18. Финальный аудит dry-run
 
 ```bash
-git log --oneline --decorate --graph --max-count=15
-```
+git status
 
-История должна читаться примерно так:
+git --no-pager log --oneline --decorate -15
 
-```text
-DEMO-4 add task filters and counters      (demo/04-finished)
-DEMO-3 persist tasks atomically           (demo/03-persistence)
-DEMO-2 add validated task creation        (demo/02-create-task)
-DEMO-1 render task board                  (demo/01-read-board)
-DEMO-BOOTSTRAP prepare task board project (demo/00-bootstrap)
-```
+git --no-pager tag --list 'demo/*'
 
-Точные SHA не важны.
-
-Важно, чтобы каждая итерация была отдельной и понятной.
-
----
-
-# 23. Проверка telemetry
-
-Запустите:
-
-```bash
-make telemetry-check
-make telemetry-summary
-```
-
-Затем:
-
-```bash
-tail -n 10 .ai/telemetry/cycles.jsonl
-```
-
-Проверьте:
-
-- bootstrap имеет собственный cycle;
-- DEMO-1…DEMO-4 представлены отдельными cycles;
-- failed/partial attempts не удалены;
-- отсутствующие token/cost значения остались `null`, а не придуманы;
-- review rounds соответствуют реальности;
-- risk A/B соответствует Task;
-- evidence_ref существует.
-
-Важно: dry-run будет более убедительным, если telemetry содержит не только идеальные `passed` rows.
-
-Если реально была неудачная попытка, оставьте её в append-only журнале.
-
-Не очищайте telemetry ради красивой презентации.
-
----
-
-# 24. Проверка CI на GitHub
-
-После каждого важного checkpoint push должен запускать repository CI.
-
-Минимально финальный `demo/04-finished` должен иметь зелёный CI.
-
-Проверьте:
-
-- repo-doctor;
-- telemetry validation;
-- telemetry append-only contract;
-- telemetry-required contract;
-- template tests;
-- project `make check`;
-- project `make test`.
-
-Если demo repository использует PR flow — полезно хотя бы DEMO-2 или DEMO-3 провести через настоящий PR, чтобы убедиться, что проверки работают именно на merge ref, а не только локально.
-
----
-
-# 25. Полная проверка новой сессии на финальном состоянии
-
-Откройте совершенно новую agent session после DEMO-4.
-
-Дайте только:
-
-```text
-Изучи этот репозиторий как новый разработчик.
-Не меняй код.
-Ответь:
-1. что это за система;
-2. какие четыре продуктовые итерации уже завершены;
-3. какие архитектурные инварианты действуют;
-4. какие проверки являются project gates;
-5. где находятся evidence и review;
-6. есть ли сейчас Ready Task;
-7. что подтверждено E2, а что E3.
-```
-
-Ожидаемо агент должен ответить по repository contents без старого чата.
-
-Если он:
-
-- путает completed/ready tasks;
-- не знает, где review;
-- не понимает persistence invariant;
-- утверждает E3 там, где есть только unit tests;
-
-то project memory требует исправления до презентации.
-
----
-
-# 26. Проверка воспроизводимости другим человеком
-
-По возможности попросите коллегу, который не участвовал в подготовке, сделать только следующее:
-
-```bash
-git clone <DEMO-REPO>
-cd agentic-template-demo
 ./scripts/repo-doctor
 make check
 make test
-```
-
-Затем дать ему ссылку только на:
-
-```text
-docs/INDEX.md
-```
-
-и попросить ответить:
-
-- как запустить приложение;
-- какая архитектура;
-- где история Task;
-- где review DEMO-3;
-- где telemetry.
-
-Если это занимает больше нескольких минут или требует устных подсказок, onboarding demo repository недостаточно самодостаточен.
-
----
-
-# 27. Подготовка checkpoints для выступления
-
-Проверьте наличие tags:
-
-```bash
-git tag --list 'demo/*'
-```
-
-Ожидаемо:
-
-```text
-demo/00-bootstrap
-demo/01-read-board
-demo/02-create-task
-demo/03-persistence
-demo/04-finished
-```
-
-Проверьте каждый tag:
-
-```bash
-git show --no-patch --oneline demo/00-bootstrap
-git show --no-patch --oneline demo/01-read-board
-git show --no-patch --oneline demo/02-create-task
-git show --no-patch --oneline demo/03-persistence
-git show --no-patch --oneline demo/04-finished
-```
-
-Затем реально checkout каждый checkpoint и убедитесь, что состояние соответствует названию.
-
-Особенно:
-
-```bash
-git checkout demo/01-read-board
-```
-
-должно давать состояние **до DEMO-2**, с которого безопасно начинать live-фрагмент.
-
----
-
-# 28. Подготовьте отдельную rehearsal branch
-
-Чтобы live-репетиция не портила готовые checkpoints:
-
-```bash
-git checkout -b rehearsal/demo-2 demo/01-read-board
-```
-
-Именно на этой branch можно повторять DEMO-2 сколько угодно.
-
-После репетиции её можно удалить:
-
-```bash
-git checkout main
-git branch -D rehearsal/demo-2
-```
-
-Tags при этом остаются неизменными.
-
----
-
-# 29. Репетиция 15-минутного выступления
-
-После полного dry-run откройте [`team-demo-scenario.md`](team-demo-scenario.md).
-
-Поставьте настоящий таймер.
-
-Нельзя останавливать таймер на переключение окон или команд.
-
-## До старта таймера
-
-Подготовьте:
-
-- терминал №1 — repository;
-- терминал №2 — server;
-- браузер — `127.0.0.1:8000`;
-- coding agent — новая чистая session;
-- editor — `docs/tasks/DEMO-2.md` и `docs/reviews/DEMO-3-review.md`;
-- branch `rehearsal/demo-2` на checkpoint `demo/01-read-board`.
-
-Проверьте:
-
-```bash
-git status
-make check
-make test
-```
-
----
-
-# 30. Что измерять во время репетиции
-
-Запишите фактические времена:
-
-| Этап | Целевое время | Фактическое |
-|---|---:|---:|
-| вводная проблема | 1:30 | |
-| Task/project memory | 1:30 | |
-| live DEMO-2 | 4:00 | |
-| новая session/context restore | 2:00 | |
-| DEMO-3/4 checkpoints | 2:30 | |
-| review/evidence | 1:30 | |
-| telemetry | 1:00 | |
-| финал | 1:00 | |
-
-Суммарно целимся примерно в 15 минут.
-
-Если live DEMO-2 регулярно занимает больше 5 минут, сократите live-часть, а не остальные ключевые идеи.
-
----
-
-# 31. Критерий переключения на Plan B
-
-На выступлении заранее определите правило.
-
-Например:
-
-> Если через 60–90 секунд после отправки prompt агент не сформировал корректный Task/risk/plan или provider явно нестабилен, переключаемся на checkpoint.
-
-Не принимайте решение импровизационно после нескольких минут ожидания.
-
-Plan B:
-
-```bash
-git reset --hard demo/02-create-task
-make check
-make test
-```
-
-или checkout заранее подготовленного checkpoint.
-
-Затем покажите браузер и продолжайте сценарий.
-
-Обязательно проговорите аудитории:
-
-```text
-Чтобы не тратить время на latency модели, переключаюсь на заранее сохранённый результат этой же итерации.
-```
-
-Это лучше, чем делать вид, что live generation прошла успешно.
-
----
-
-# 32. Проверка восстановления после неудачной live-попытки
-
-Специально смоделируйте один сбой на репетиции.
-
-Например:
-
-1. начните DEMO-2;
-2. остановите агента после частичного изменения;
-3. выполните:
-
-```bash
-git status
-git diff
-```
-
-4. покажите, что рабочее состояние можно безопасно отбросить:
-
-```bash
-git reset --hard demo/01-read-board
-```
-
-5. затем переключиться на:
-
-```bash
-git checkout demo/02-create-task
-```
-
-Цель — убедиться, что fallback проверен практически, а не только описан в документации.
-
----
-
-# 33. Проверка браузерного demo
-
-На финальном checkpoint выполните пользовательский smoke test:
-
-## DEMO-1 regression
-
-- список отображается;
-- seed data видны.
-
-## DEMO-2 regression
-
-- valid create работает;
-- empty title отклоняется;
-- long title отклоняется;
-- invalid priority отклоняется.
-
-## DEMO-3 regression
-
-- задача сохраняется после restart;
-- runtime file не tracked Git.
-
-## DEMO-4
-
-- done работает;
-- filters работают;
-- counters корректны;
-- reload не ломает состояние.
-
-Проверка должна занимать не больше нескольких минут.
-
----
-
-# 34. Проверка чистоты demo repository
-
-Перед презентацией:
-
-```bash
-git status
-git ls-files .demo-data
+make test-template
+make test-integration
+make telemetry-check
+make telemetry-summary
+
+cat docs/backlog/TODO.md
+ls -1 docs/reviews/
+grep -H "Статус:" docs/tasks/DEMO-*.md
 ```
 
 Ожидаемо:
 
 ```text
 working tree clean
+5 demo tags
+5 Tasks done
+5 independent review artifacts
+all final gates PASS
+integration tests PASS
+telemetry содержит project cycles, а не source template history
 ```
 
-а `git ls-files .demo-data` ничего не выводит.
-
-Также проверьте отсутствие случайных:
-
-- secrets;
-- токенов;
-- provider config;
-- локальных абсолютных путей;
-- персональных данных;
-- больших временных файлов.
-
-Запустите:
-
-```bash
-./scripts/repo-doctor
-```
+Количество telemetry rows не обязано быть ровно числу Tasks: failed/partial/retry cycles должны сохраняться append-only.
 
 ---
 
-# 35. Проверка независимости от сети
+# 19. Проверка context recovery
 
-После того как demo repository клонирован и coding agent не нужен, приложение должно работать без внешней сети.
-
-Проверьте хотя бы один раз:
-
-1. отключите ненужный network/VPN либо просто убедитесь, что runtime не обращается наружу;
-2. выполните:
-
-```bash
-make check
-make test
-```
-
-3. запустите приложение;
-4. откройте локальный browser URL.
-
-Demo runtime не должен требовать:
-
-- `pip install`;
-- npm registry;
-- внешнюю БД;
-- API key;
-- облачный сервис.
-
-Сеть нужна только live coding agent, и именно для этого существует checkpoint fallback.
-
----
-
-# 36. Матрица результатов полного dry-run
-
-После прогона заполните таблицу.
-
-| Проверка | PASS/FAIL | Комментарий |
-|---|---|---|
-| создание нового repo из template | | |
-| repo-doctor сразу после clone | | |
-| initial gates fail-closed | | |
-| bootstrap project gates | | |
-| agent восстанавливает context | | |
-| одна Task за цикл | | |
-| human gate DEMO-2 | | |
-| negative AC DEMO-2 | | |
-| restart integration DEMO-3 | | |
-| corrupt data behavior | | |
-| independent review artifacts | | |
-| evidence E2/E3 не завышен | | |
-| telemetry append-only | | |
-| CI green | | |
-| new session after DEMO-4 | | |
-| checkpoints восстанавливаются | | |
-| Plan B проверен практически | | |
-| 15-minute rehearsal укладывается | | |
-
-Не считайте прогон успешным, если критические пункты остаются неизвестными.
-
----
-
-# 37. Что считать блокирующим дефектом template/demo
-
-Перед выступлением исправьте обязательно:
-
-- project gates дают false-green;
-- агент не может определить текущую Task из repository;
-- DEMO-2 не останавливается на required human gate;
-- corrupted persistence silently теряет данные;
-- заявленный E3 не имеет integration test;
-- telemetry можно перезаписать без обнаружения CI;
-- checkpoint не соответствует ожидаемой итерации;
-- demo runtime требует сеть или незадокументированную dependency;
-- новая session требует устного пересказа истории проекта;
-- Plan B не восстанавливает рабочее состояние.
-
----
-
-# 38. Что не является блокирующим
-
-Можно осознанно принять до выступления:
-
-- косметические различия UI;
-- небольшой P2/P3 review finding с документированным residual risk;
-- отсутствие token/cost telemetry, если provider её не предоставляет;
-- отсутствие отдельного PR на DEMO-1 при наличии корректного commit/evidence;
-- небольшие отклонения от 15 минут, если ключевые блоки остаются понятными.
-
----
-
-# 39. Рекомендуемый журнал репетиции
-
-Создайте локальный или repository документ, например:
+Откройте новую agent session и дайте только:
 
 ```text
-docs/workshop/rehearsal-notes.md
+Изучи репозиторий и скажи:
+что уже реализовано,
+какая следующая готовая задача
+и чем она должна быть проверена.
+Код пока не меняй.
 ```
 
-Для каждой попытки:
+Агент не должен использовать сведения прошлой беседы и не должен придумывать отсутствующий backlog.
+
+---
+
+# 20. Timed rehearsal
+
+Рекомендуемый сценарий:
 
 ```text
-Дата:
-Coding agent/model:
-Начальный checkpoint:
-Полное время:
-Время DEMO-2 live:
-Был ли fallback:
-Что было непонятно аудитории/наблюдателю:
-Где потребовалась ручная подсказка агенту:
-Что исправить до следующего прогона:
+1. показать demo/01-read-board
+2. новая agent session
+3. /develop или общий START_PROMPT contract
+4. агент сам выбирает DEMO-2
+5. показывает Risk B + required human gate
+6. человек подтверждает
+7. короткий live implementation / заранее ограниченный segment
+8. показать review/evidence/telemetry
+9. перейти на demo/03-persistence и показать restart evidence
+10. перейти на demo/04-finished и показать финальный продукт
 ```
 
-Не нужно превращать rehearsal notes в постоянную архитектурную документацию. Это рабочий журнал подготовки выступления.
+Plan B при проблемах модели/сети: честно перейти на заранее проверенный следующий checkpoint, не изображая незавершённую live-операцию как успешную.
 
 ---
 
-# 40. Минимум два контрольных прогона
+# 21. Что считать успешным dry-run
 
-Рекомендуется провести:
+Dry-run успешен, если подтверждено не только приложение, но и workflow:
 
-## Прогон A — инженерный
+- downstream initialization очистила source history;
+- repository context восстановим clean-session агентом;
+- Risk B реально вызывает human gate;
+- zero-test false-green отсутствует;
+- integration gate эволюционировал `NOT CONFIGURED → real E3`;
+- independent review относится к закрываемому HEAD;
+- Task/TODO statuses согласованы;
+- telemetry append-only и project-specific;
+- checkpoints воспроизводимы;
+- финальное дерево чистое.
 
-Без попытки уложиться во время.
-
-Цель:
-
-- найти дефекты процесса;
-- проверить Task/AC/evidence;
-- получить checkpoints.
-
-## Прогон B — презентационный
-
-С таймером 15 минут.
-
-Цель:
-
-- проверить темп;
-- убрать лишние переходы;
-- проверить live DEMO-2;
-- проверить fallback.
-
-Если есть возможность, проведите ещё один прогон перед человеком, который не видел подготовку.
-
----
-
-# 41. Финальный preflight за день до выступления
-
-В demo repository:
-
-```bash
-git fetch --all --tags
-git status
-./scripts/repo-doctor
-make test-template
-make check
-make test
-make test-integration
-make telemetry-check
-```
-
-Проверьте tags:
-
-```bash
-git tag --list 'demo/*'
-```
-
-Проверьте final checkpoint:
-
-```bash
-git checkout demo/04-finished
-```
-
-Запустите приложение.
-
-Проверьте browser smoke test.
-
-Вернитесь на live start:
-
-```bash
-git checkout -B rehearsal/demo-2 demo/01-read-board
-```
-
-После этого **не обновляйте зависимости и не меняйте demo без причины**.
-
----
-
-# 42. Финальный preflight непосредственно перед выступлением
-
-За несколько минут до начала:
-
-```bash
-git status
-make check
-make test
-```
-
-Должно быть чисто и зелено.
-
-Запустите server на нужном checkpoint и убедитесь, что browser открывается.
-
-Затем остановите server, если по сценарию его нужно запускать при аудитории.
-
-Откройте заранее:
-
-- repository root;
-- `docs/tasks/DEMO-2.md`;
-- `docs/reviews/DEMO-3-review.md`;
-- terminal с крупным шрифтом;
-- browser;
-- чистую agent session.
-
-Очистите terminal от лишней истории, которая может отвлекать или содержать секреты.
-
----
-
-# 43. Критерий «demo готово к презентации»
-
-Demo можно считать готовым, если одновременно выполнено следующее:
-
-1. отдельный repository создан из template;
-2. initial fail-closed state подтверждён;
-3. bootstrap прошёл через реальные gates;
-4. DEMO-1…DEMO-4 реально реализованы отдельными итерациями;
-5. human gate DEMO-2 фактически наблюдался;
-6. DEMO-2 имеет positive + negative tests;
-7. DEMO-3 имеет настоящий restart integration test;
-8. independent review artifacts существуют как минимум для DEMO-2/DEMO-3;
-9. telemetry проходит validation и append-only checks;
-10. final GitHub CI зелёный;
-11. новая session восстанавливает состояние без старого чата;
-12. все `demo/*` checkpoints проверены checkout'ом;
-13. fallback после незавершённой live-попытки реально проверен;
-14. финальное приложение запускается без внешних runtime dependencies;
-15. timed rehearsal укладывается примерно в 15 минут.
-
-Если пункт 11 не выполняется, это особенно важно исправить: именно repository-as-memory является центральной ценностью подхода.
-
----
-
-# 44. Короткая последовательность для повторного прогона
-
-После того как полный инженерный dry-run уже выполнен, следующая репетиция сводится к:
-
-```bash
-git fetch --all --tags
-git checkout -B rehearsal/demo-2 demo/01-read-board
-./scripts/repo-doctor
-make check
-make test
-```
-
-Далее:
-
-```text
-1. новая agent session
-2. короткий prompt
-3. DEMO-2 plan
-4. human gate
-5. live implementation или fallback
-6. browser positive/negative scenario
-7. новая session → restore context
-8. checkout DEMO-3 → restart evidence
-9. checkout DEMO-4 → final UI
-10. review artifact
-11. telemetry summary
-12. Git log + финальный тезис
-```
-
-Полный сценарий по минутам находится в [`team-demo-scenario.md`](team-demo-scenario.md).
-
----
-
-# 45. Главный принцип контрольного прогона
-
-Не оптимизируйте первый dry-run под красивую презентацию.
-
-Если агент ошибся, review нашёл проблему, CI упал или telemetry получила `partial/failed` цикл — **сохраните это как реальный инженерный след**.
-
-Первый прогон нужен именно для того, чтобы увидеть слабые места процесса.
-
-Красивые checkpoints для выступления создаются после того, как процесс уже доказал свою воспроизводимость.
+Если один из этих пунктов нарушен, фиксируйте это как finding template/process, а не скрывайте workaround'ом.

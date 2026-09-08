@@ -1,101 +1,45 @@
-# Demo Project — Mini Task Board
+# Mini Task Board — спецификация demo-проекта
 
-Этот документ задаёт **фиксированную демонстрационную спецификацию**, чтобы командная презентация была воспроизводимой и не зависела от того, что именно предложит AI в конкретной сессии.
+Этот документ фиксирует маленький продукт, на котором демонстрируется Agentic Repository Engineering workflow. Он специально достаточно прост, чтобы команда понимала результат без предметного контекста, и достаточно содержателен для нескольких независимых итераций.
 
-Сценарий выступления: [`team-demo-scenario.md`](team-demo-scenario.md).
+## 1. Цель
 
----
+Mini Task Board — локальный однопользовательский веб-трекер задач на Python standard library.
 
-## 1. Почему выбран именно такой проект
+Demo показывает не сложность приложения, а процесс:
 
-Demo должен удовлетворять нескольким условиям одновременно:
+```text
+repository context
+→ bounded Task
+→ risk / human gate
+→ implementation
+→ real checks
+→ independent review
+→ evidence
+→ telemetry
+→ Git checkpoint
+```
 
-- понятен любому разработчику без предметного контекста;
-- итог можно увидеть глазами, а не только в тестах;
-- каждая следующая итерация естественно продолжает предыдущую;
-- есть read‑операция, write‑операция и работа с данными;
-- весь проект запускается локально;
-- установка сторонних библиотек не должна быть обязательной;
-- тесты должны выполняться быстро;
-- код достаточно мал, чтобы diff можно было понять во время презентации.
+## 2. Технические ограничения
 
-Поэтому предлагается **Mini Task Board** — маленький локальный веб‑трекер задач.
-
----
-
-## 2. Технические ограничения demo
-
-Рекомендуемый стек:
-
-- Python 3.11+;
-- только стандартная библиотека Python;
-- `http.server` / `BaseHTTPRequestHandler` или эквивалентный минимальный HTTP слой;
-- HTML/CSS без JavaScript framework;
+- Python 3.10+;
+- только standard library;
+- без pip/runtime network dependencies;
+- HTTP server слушает только `127.0.0.1:8000`;
+- HTML/CSS без JS framework;
 - `unittest`;
-- JSON‑файл для persistence;
-- запуск на `127.0.0.1:8000`.
+- JSON persistence появляется только в DEMO-3;
+- runtime data: `.demo-data/tasks.json`.
 
-Почему без Flask/FastAPI/Node:
+`.demo-data/` должна быть в `.gitignore`.
 
-- не нужен `pip install` перед выступлением;
-- нет риска сломанного registry/network;
-- dependencies не отвлекают от repository workflow;
-- приложение запускается практически на любой машине с Python.
-
-Если команда преимущественно работает с другим стеком, сам сценарий можно перенести на него без изменения Task structure.
-
----
-
-## 3. Целевая структура demo repository
-
-После bootstrap:
-
-```text
-.
-├── AGENTS.md
-├── Makefile
-├── src/
-│   └── taskboard/
-│       ├── __init__.py
-│       ├── app.py
-│       ├── model.py
-│       └── store.py
-├── tests/
-│   ├── test_app.py
-│   └── test_store.py
-├── docs/
-│   ├── architecture/
-│   │   ├── overview.md
-│   │   └── invariants.md
-│   ├── backlog/
-│   │   ├── ROADMAP.md
-│   │   └── TODO.md
-│   ├── tasks/
-│   │   ├── DEMO-1.md
-│   │   ├── DEMO-2.md
-│   │   ├── DEMO-3.md
-│   │   └── DEMO-4.md
-│   └── reviews/
-└── .ai/telemetry/cycles.jsonl
-```
-
-Runtime data можно хранить в:
-
-```text
-.demo-data/tasks.json
-```
-
-Эта директория должна быть в `.gitignore`.
-
----
-
-## 4. Минимальная архитектура
+## 3. Целевая архитектура
 
 ```text
 Browser
    |
    v
-HTTP handler / app.py
+HTTP application
    |
    +----> render HTML
    |
@@ -105,55 +49,71 @@ HTTP handler / app.py
       .demo-data/tasks.json
 ```
 
-### Инварианты demo
+Целевая схема не означает, что все компоненты существуют в bootstrap. `docs/architecture/overview.md` обязан отдельно описывать фактическое состояние каждой итерации.
 
-Зафиксируйте их в `docs/architecture/invariants.md`:
+## 4. Инварианты demo
 
 1. пользовательский ввод никогда не вставляется в HTML без escaping;
-2. пустое название задачи не сохраняется;
-3. изменение состояния выполняется только через `TaskStore`;
-4. файл persistence должен обновляться атомарно;
-5. повреждённый файл данных не должен молча перезаписываться пустым состоянием;
-6. demo не слушает внешний интерфейс сети — только `127.0.0.1`.
-
-Эти правила нужны не ради сложности приложения, а чтобы показать, что агент работает внутри заранее известных границ.
+2. пустой/whitespace-only title не сохраняется;
+3. после появления TaskStore mutations выполняются через него;
+4. persistence использует temporary file + atomic replace;
+5. corrupt JSON не приводит к silent reset/overwrite;
+6. server слушает только `127.0.0.1`;
+7. `.demo-data/` не хранится в Git;
+8. project gates не дают zero-work/zero-test false PASS;
+9. будущая архитектура не документируется как уже реализованная.
 
 ---
 
-# 5. Bootstrap — до продуктовых итераций
+# 5. Bootstrap
 
-Bootstrap лучше подготовить заранее, не тратить на него live‑время.
+Bootstrap выполняется заранее и тоже проходит как отдельная Task.
 
-## Цель
+После создания downstream repository:
 
-Превратить generic template в конкретный маленький проект.
+```bash
+./scripts/init-project "Mini Task Board" \
+  --bootstrap-id DEMO-BOOTSTRAP \
+  --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
+```
 
-## Сделать заранее
+## Bootstrap scope
 
-- заполнить architecture overview/invariants;
-- настроить `Makefile`;
-- создать package structure;
-- создать четыре Task;
+- очистить inherited source history через initializer;
+- настроить реальные `make check` и `make test`;
+- оставить `make test-integration` fail-closed;
+- создать `src/taskboard`;
+- создать минимум один реальный product smoke test;
+- заполнить architecture/invariants;
+- создать DEMO-1…DEMO-4;
 - обновить ROADMAP/TODO;
-- добавить `.gitignore` для runtime data;
-- убедиться, что project gates больше не `NOT CONFIGURED`.
+- исключить `.demo-data/` из Git.
 
-Рекомендуемые команды:
+## Проверенные gate semantics
 
 ```make
 check:
+	@[ -d src ] && [ -d tests ] || \
+		{ echo "NOT CONFIGURED: expected src/ and tests/ directories" >&2; exit 2; }
+	@find src tests -type f -name '*.py' -print -quit | grep -q . || \
+		{ echo "NOT CONFIGURED: no Python sources found in src/ or tests/" >&2; exit 2; }
 	python3 -m compileall -q src tests
 
 test:
+	@find tests -maxdepth 1 -type f -name 'test_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: add at least one project test" >&2; exit 2; }
 	python3 -m unittest discover -s tests -p 'test_*.py'
 
 test-integration:
-	python3 -m unittest discover -s tests -p 'test_integration_*.py'
+	@echo "NOT CONFIGURED: integration tests are not implemented yet" >&2
+	@exit 2
 ```
 
-В bootstrap тесты могут быть минимальными smoke tests.
+`make test-template` отдельно запускает `template_tests/`.
 
-Checkpoint:
+Важно: пустой `unittest discover` может вернуть 0. Поэтому отсутствие tests не должно маскироваться как PASS.
+
+Checkpoint после полного closure bootstrap:
 
 ```text
 demo/00-bootstrap
@@ -161,19 +121,25 @@ demo/00-bootstrap
 
 ---
 
-# 6. Итерация DEMO-1 — показать список задач
+# 6. DEMO-1 — показать список задач
 
 **Risk:** A  
-**Human gate:** delegated или required — для презентации удобнее delegated  
+**Human gate:** delegated  
 **Ожидаемый evidence:** E2
 
 ## Пользовательская ценность
 
-При открытии браузера пользователь видит простой список задач.
+При открытии браузера пользователь видит read-only список задач.
 
 ## Scope
 
-Реализовать только read‑only отображение.
+- HTTP application;
+- `GET /`;
+- HTML rendering;
+- seed data;
+- title + priority;
+- HTML escaping;
+- localhost-only bind.
 
 Не входит:
 
@@ -185,10 +151,11 @@ demo/00-bootstrap
 ## Acceptance Criteria
 
 - `GET /` возвращает HTTP 200;
-- страница содержит заголовок `Mini Task Board`;
-- отображаются три seed‑задачи;
-- для каждой задачи видны название и приоритет;
-- HTML escaping проверен тестом;
+- страница содержит `Mini Task Board`;
+- отображаются три seed tasks;
+- для каждой видны title и priority;
+- HTML escaping подтверждён test;
+- server слушает только `127.0.0.1`;
 - `make check` и `make test` проходят.
 
 ## Seed data
@@ -209,14 +176,7 @@ Mini Task Board
 [low]    Обновить README
 ```
 
-## Что показать в Git
-
-```bash
-git show --stat demo/01-read-board
-git diff demo/00-bootstrap..demo/01-read-board
-```
-
-Checkpoint:
+Checkpoint после review/evidence/telemetry closure:
 
 ```text
 demo/01-read-board
@@ -224,61 +184,55 @@ demo/01-read-board
 
 ---
 
-# 7. Итерация DEMO-2 — создать задачу
+# 7. DEMO-2 — создать задачу
 
 **Risk:** B  
 **Human gate:** required  
 **Ожидаемый evidence:** E2
 
-Это лучшая итерация для live‑показа.
+Это рекомендуемая live-итерация презентации.
 
-## Почему B
+## Почему Risk B
 
-Появляется write‑операция и новый HTTP/state contract. Риск невысокий в абсолютном смысле, но классификация B позволяет наглядно показать обязательный human gate и негативные сценарии.
+Появляется write-operation и новый HTTP/state contract. Категория B позволяет явно показать mandatory human gate.
 
-## Пользовательская ценность
+## Scope
 
-На странице появляется форма:
+- form UI;
+- POST/write handler;
+- validation;
+- in-memory state;
+- отображение созданной задачи.
 
-```text
-Название: [________________________]
-Приоритет: [low | medium | high]
-[Добавить]
-```
+Не входит persistence между restart.
 
 ## Acceptance Criteria
 
-- валидная задача добавляется и сразу отображается;
-- пустое/whitespace‑only название отклоняется;
-- название длиннее 80 символов отклоняется;
-- неизвестный priority отклоняется;
-- пользовательский ввод HTML‑escaped;
-- read‑only поведение DEMO-1 не ломается;
+- valid task добавляется и сразу отображается;
+- blank/whitespace-only title отклоняется;
+- title > 80 символов отклоняется;
+- unknown priority отклоняется;
+- input HTML-escaped;
+- DEMO-1 regression не ломается;
 - `make check` и `make test` проходят.
 
-## Отрицательный сценарий для live
+## Human gate
 
-После успешного добавления отправьте пустую форму.
-
-Ожидаемо пользователь видит понятную ошибку, состояние не меняется.
-
-## Что должен сказать агент до реализации
-
-Пример ожидаемого плана:
+До реализации агент должен показать:
 
 ```text
 Task: DEMO-2
 Risk: B
 Human gate: required
-
-1. Добавить handler записи.
-2. Добавить validation function.
-3. Добавить form rendering.
-4. Покрыть valid/invalid cases тестами.
-5. Запустить make check && make test.
+plan
+verification
 ```
 
-После этого человек подтверждает план.
+и дождаться явного подтверждения.
+
+## Negative live scenario
+
+После successful create отправьте пустую форму. Состояние не должно меняться, пользователь должен увидеть понятную ошибку.
 
 Checkpoint:
 
@@ -288,55 +242,59 @@ demo/02-create-task
 
 ---
 
-# 8. Итерация DEMO-3 — persistence между перезапусками
+# 8. DEMO-3 — persistence между перезапусками
 
 **Risk:** B  
 **Human gate:** required  
 **Ожидаемый evidence:** E3
 
-Эту итерацию лучше подготовить заранее и на выступлении показать только результат + tests/review.
-
 ## Пользовательская ценность
 
-Созданные задачи не исчезают после перезапуска приложения.
+Созданные задачи переживают restart приложения.
 
 ## Scope
 
+- TaskStore;
 - JSON storage;
-- загрузка при старте;
-- атомарная запись;
-- отдельный store abstraction.
+- load on start;
+- temporary file + atomic replace;
+- explicit corrupt-data failure;
+- настоящий integration restart flow.
 
 Не входит:
 
 - база данных;
-- миграционная система;
+- migrations;
 - multi-user/concurrent server support.
 
 ## Acceptance Criteria
 
 - созданная задача сохраняется на диск;
-- после restart она снова отображается;
-- запись идёт через temporary file + atomic replace;
-- повреждённый JSON приводит к явной ошибке и не перезаписывается автоматически;
+- после restart снова отображается;
+- запись использует temporary file + atomic replace;
+- corrupt JSON вызывает явную ошибку и не перезаписывается пустым state;
 - runtime data не попадает в Git;
-- unit tests store проходят;
-- integration test `create → restart → read` проходит.
+- TaskStore unit tests проходят;
+- integration `create → restart → read` проходит.
 
-## Почему эта итерация важна для презентации
+## Именно здесь включается integration gate
 
-Она показывает отличие evidence level:
+До DEMO-3 `make test-integration` был `NOT CONFIGURED`.
 
-- unit test serialization — ещё не подтверждает restart flow;
-- integration `create → stop → start → read` — более сильное доказательство.
+Теперь target получает guard и настоящий test suite:
 
-Именно здесь удобно показать E2 vs E3.
+```make
+test-integration:
+	@find tests -maxdepth 1 -type f -name 'test_integration_*.py' | grep -q . || \
+		{ echo "NOT CONFIGURED: integration tests are not implemented yet" >&2; exit 2; }
+	python3 -m unittest discover -s tests -p 'test_integration_*.py'
+```
 
-## Live‑проверка
+## Live evidence
 
 1. запустить приложение;
 2. создать `Задача переживает restart`;
-3. остановить сервер;
+3. остановить server;
 4. запустить снова;
 5. обновить браузер;
 6. задача осталась.
@@ -349,22 +307,18 @@ demo/03-persistence
 
 ---
 
-# 9. Итерация DEMO-4 — завершение и фильтрация
+# 9. DEMO-4 — завершение и фильтрация
 
 **Risk:** A  
 **Human gate:** delegated допустим  
 **Ожидаемый evidence:** E2/E3
 
-## Пользовательская ценность
-
-Demo начинает выглядеть как законченный маленький продукт.
-
 ## Acceptance Criteria
 
 - задачу можно отметить выполненной;
-- есть фильтры `all/open/done`;
-- видны счётчики `Открыто` и `Выполнено`;
-- фильтр сохраняет корректность после reload;
+- есть filters `all/open/done`;
+- видны counters `Открыто` и `Выполнено`;
+- состояние/фильтрация корректны после reload;
 - все regression tests проходят.
 
 ## Финальный экран
@@ -393,162 +347,117 @@ demo/04-finished
 
 ---
 
-# 10. Backlog для demo
+# 10. Backlog semantics
 
-В `docs/backlog/TODO.md` перед выступлением:
+В каждый момент только действительно готовые Tasks находятся в `Ready`.
+
+После bootstrap:
 
 ```text
-## Ready
+Ready:
+  DEMO-1
 
-- [ ] DEMO-2 — добавить создание задачи
-- [ ] DEMO-3 — persistence между перезапусками
-- [ ] DEMO-4 — завершение и фильтры
-
-## Done
-
-- [x] DEMO-1 — показать список задач
+Planned:
+  DEMO-2
+  DEMO-3
+  DEMO-4
 ```
 
-Для live‑демонстрации стартуйте с `demo/01-read-board`.
+После DEMO-1:
 
-Так первая видимая страница уже существует, а агент получает одну понятную следующую Task.
+```text
+Ready:
+  DEMO-2
+
+Done:
+  DEMO-BOOTSTRAP
+  DEMO-1
+```
+
+Поле `**Статус:**` в Task обязано совпадать с секцией TODO. `repo-doctor` проверяет это автоматически.
 
 ---
 
 # 11. Review artifacts
 
-Минимально заранее подготовьте:
+Каждая Task получает independent clean-context review:
 
 ```text
+docs/reviews/DEMO-BOOTSTRAP-review.md
+docs/reviews/DEMO-1-review.md
 docs/reviews/DEMO-2-review.md
 docs/reviews/DEMO-3-review.md
+docs/reviews/DEMO-4-review.md
 ```
 
-Особенно полезен `DEMO-3-review.md`.
-
-Reviewer должен проверить:
-
-- atomic replace;
-- corrupt file behavior;
-- отсутствие silent data loss;
-- path/runtime data isolation;
-- соответствие integration evidence фактическому тесту.
-
-Не нужно искусственно добавлять дефект ради шоу. Если reviewer не нашёл P0/P1 — это нормальный результат.
+Reviewer проверяет фиксированный HEAD. Если после review внесены существенные изменения, новый HEAD требует повторной независимой проверки до closure.
 
 ---
 
-# 12. Telemetry demo data
+# 12. Telemetry
 
-В финальном checkpoint желательно иметь четыре реальные записи циклов.
+Каждый фактический cycle записывается append-only. Retry/failed/partial attempts не удаляются.
 
-На выступлении достаточно показать агрегат:
+Для presentation особенно полезны:
 
-```bash
-make telemetry-summary
-```
+- duration;
+- result;
+- risk;
+- review rounds;
+- P0/P1;
+- live validation;
+- escaped defects;
+- model/provider, если они реально известны.
 
-Хороший пример результата:
-
-```text
-cycles: 4
-passed: 4
-avg duration: ...
-review rounds: ...
-A tasks: 2
-B tasks: 2
-```
-
-Не подставляйте фиктивные token/cost значения. Если provider их не даёт — `null`.
+Не заполняйте model/provider догадкой.
 
 ---
 
-# 13. Checkpoints и восстановление
-
-Рекомендуемая история:
+# 13. Рекомендуемый presentation flow
 
 ```text
-00-bootstrap
-    |
-01-read-board
-    |
-02-create-task
-    |
-03-persistence
-    |
-04-finished
+demo/00-bootstrap
+        ↓
+demo/01-read-board      ← старт live
+        ↓
+demo/02-create-task     ← Risk B + human gate
+        ↓
+demo/03-persistence     ← E3 restart evidence
+        ↓
+demo/04-finished        ← финальный продукт
 ```
 
-Создать tags можно так:
+DEMO-2 — основной live segment. DEMO-3 лучше показать как готовый restart evidence. `demo/04-finished` — Plan B и финальное состояние.
+
+---
+
+# 14. Финальный audit
 
 ```bash
-git tag demo/00-bootstrap <sha>
-git tag demo/01-read-board <sha>
-git tag demo/02-create-task <sha>
-git tag demo/03-persistence <sha>
-git tag demo/04-finished <sha>
-```
+git status
+git --no-pager log --oneline --decorate -15
+git --no-pager tag --list 'demo/*'
 
-Перед презентацией обязательно проверить каждый:
-
-```bash
-git switch --detach demo/04-finished
+./scripts/repo-doctor
 make check
 make test
+make test-template
 make test-integration
+make telemetry-check
+make telemetry-summary
+
+cat docs/backlog/TODO.md
+ls docs/reviews
+grep -H "Статус:" docs/tasks/DEMO-*.md
 ```
 
-И затем вернуть старт:
+Успешный dry-run означает:
 
-```bash
-git switch --detach demo/01-read-board
-```
-
-Если нужно вносить live изменения, лучше создать временную ветку:
-
-```bash
-git switch -c presentation/live demo/01-read-board
-```
-
-После выступления её можно удалить.
-
----
-
-# 14. Проверка готовности demo
-
-За день до презентации пройти checklist:
-
-- [ ] demo repo открывается без доступа к внутренним корпоративным системам;
-- [ ] Python version совместима;
-- [ ] `make check` PASS;
-- [ ] `make test` PASS;
-- [ ] `make test-integration` PASS;
-- [ ] `./scripts/repo-doctor` PASS;
-- [ ] все checkpoints существуют;
-- [ ] `demo/01-read-board` запускается;
-- [ ] `demo/04-finished` запускается;
-- [ ] браузер открывает `127.0.0.1:8000`;
-- [ ] runtime data очищены перед началом;
-- [ ] coding agent авторизован;
-- [ ] запасной checkpoint для live DEMO-2 проверен;
-- [ ] terminal font достаточно крупный;
-- [ ] никакие tokens/secrets не попадут на экран.
-
----
-
-# 15. Что будет считаться хорошим результатом
-
-Сам Task Board специально прост.
-
-Если аудитория обсуждает только HTML или Python, demo не достиг цели.
-
-Хороший результат — когда после показа обсуждение смещается к вопросам:
-
-- как заполнить repository context для нашего проекта;
-- какие checks считать обязательными;
-- как классифицировать risk;
-- каким агентом делать author/reviewer;
-- какие метрики действительно полезны;
-- как использовать этот template в существующих репозиториях.
-
-Именно эти вопросы означают, что команда увидела **инженерный процесс**, а не очередную демонстрацию генерации кода.
+- чистое дерево;
+- пять closure checkpoints;
+- все Tasks `done`;
+- все final gates PASS;
+- integration gate действительно проверяет restart flow;
+- independent review есть для каждой Task;
+- telemetry содержит только downstream project cycles;
+- agent context восстанавливается без истории предыдущего чата.

@@ -8,7 +8,7 @@
 
 ## In progress
 
-- нет
+- [ ] TEMPLATE-4 — harden downstream bootstrap по результатам полного dry-run.
 
 ## Blocked
 
