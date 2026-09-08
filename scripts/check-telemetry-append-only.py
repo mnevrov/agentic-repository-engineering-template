@@ -13,7 +13,6 @@ args = p.parse_args()
 root = Path(__file__).resolve().parents[1]
 rel = TELEMETRY_PATH.relative_to(root)
 
-# Validate and parse the current file first.
 try:
     new_rows = load_jsonl()
 except ValueError as exc:
@@ -44,10 +43,19 @@ if proc.returncode == 0:
 if len(new_rows) < len(old_rows):
     raise SystemExit("Telemetry is not append-only: existing rows were removed.")
 
-# Compare row content, not incidental JSON formatting. Changing any historical
-# value or row order still fails; whitespace/key-order normalization does not.
-if new_rows[: len(old_rows)] != old_rows:
-    raise SystemExit("Telemetry is not append-only: existing rows were modified or reordered.")
+for index, (old_row, new_row) in enumerate(zip(old_rows, new_rows), 1):
+    if old_row == new_row:
+        continue
+    keys = sorted(
+        key
+        for key in set(old_row) | set(new_row)
+        if old_row.get(key) != new_row.get(key)
+    )
+    cycle_id = old_row.get("cycle_id") or new_row.get("cycle_id") or "unknown"
+    raise SystemExit(
+        "Telemetry is not append-only: historical row "
+        f"{index} ({cycle_id}) changed fields: {', '.join(keys) or 'unknown'}"
+    )
 
 print(
     f"telemetry append-only: preserved {len(old_rows)} existing row(s), "
