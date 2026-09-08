@@ -39,11 +39,14 @@ jobs:
             set +e
             CHECK_OUTPUT="$(make check 2>&1)"; CHECK_RC=$?
             TEST_OUTPUT="$(make test 2>&1)"; TEST_RC=$?
+            INTEGRATION_OUTPUT="$(make test-integration 2>&1)"; INTEGRATION_RC=$?
             set -e
             printf '%s\n' "$CHECK_OUTPUT"
             printf '%s\n' "$TEST_OUTPUT"
+            printf '%s\n' "$INTEGRATION_OUTPUT"
             [[ $CHECK_RC -eq 2 && "$CHECK_OUTPUT" == *"NOT CONFIGURED"* ]]
             [[ $TEST_RC -eq 2 && "$TEST_OUTPUT" == *"NOT CONFIGURED"* ]]
+            [[ $INTEGRATION_RC -eq 2 && "$INTEGRATION_OUTPUT" == *"NOT CONFIGURED"* ]]
           else
             make check
             make test
