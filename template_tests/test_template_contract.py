@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -10,10 +9,31 @@ MAKEFILE = ROOT / "Makefile"
 
 class TemplateContractTests(unittest.TestCase):
     def target_recipe(self, target: str) -> str:
-        text = MAKEFILE.read_text(encoding="utf-8")
-        match = re.search(rf"(?ms)^{re.escape(target)}:\s*\n((?:\t.*(?:\n|$))+)", text)
-        self.assertIsNotNone(match, f"missing Make target: {target}")
-        return match.group(1)
+        lines = MAKEFILE.read_text(encoding="utf-8").splitlines()
+        header = f"{target}:"
+        start = None
+
+        for index, line in enumerate(lines):
+            if line.strip() == header:
+                start = index + 1
+                break
+
+        self.assertIsNotNone(start, f"missing Make target: {target}")
+
+        recipe = []
+        for line in lines[start:]:
+            if line.startswith("\t"):
+                recipe.append(line)
+                continue
+            if not line.strip():
+                if recipe:
+                    break
+                continue
+            if recipe:
+                break
+
+        self.assertTrue(recipe, f"missing recipe for Make target: {target}")
+        return "\n".join(recipe)
 
     def assert_placeholder_fails_closed_if_present(self, target: str) -> None:
         recipe = self.target_recipe(target)
