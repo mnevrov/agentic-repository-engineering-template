@@ -23,6 +23,8 @@
 - демонстрация новой сессии агента с восстановлением контекста из Git;
 - human gate, tests, review/evidence, telemetry;
 - plan B на случай проблем с provider/network;
+- подробный runbook полного контрольного прогона на отдельном реальном репозитории;
+- критерии готовности demo к презентации и timed rehearsal;
 - сокращённый 10-минутный вариант.
 
 ### Не входит
@@ -42,6 +44,7 @@
 - [x] AC-6: есть пример задачи с более сильным evidence level, чем unit tests.
 - [x] AC-7: предусмотрен plan B без имитации live-разработки.
 - [x] AC-8: сценарий не требует внешних runtime dependencies для demo application.
+- [x] AC-9: есть подробная инструкция полного dry-run на новом реальном repository, включая bootstrap, DEMO-1…4, CI, review, evidence, telemetry, checkpoints, fallback и критерий готовности к выступлению.
 
 ## Архитектурные ограничения
 
@@ -54,28 +57,29 @@
 
 - unit: n/a;
 - integration: `repo-doctor`, template tests и CI после публикации;
-- manual: пройти сценарий по таймингу и проверить непротиворечивость Task/checkpoints;
-- ожидаемый evidence level: E1 для сценария + E2 для структуры template/CI.
+- manual: проверить последовательность сценария и runbook; фактический полный rehearsal выполняется уже на отдельном demo repository;
+- ожидаемый evidence level: E1 для сценария/runbook + E2 для структуры template/CI.
 
 ## Доказательства
 
-- команды: GitHub Actions после открытия PR;
-- результаты: pending CI;
+- команды: GitHub Actions после публикации PR и последующих обновлений;
+- результаты: CI на исходной версии PR прошёл; после добавления dry-run runbook требуется повторный CI на текущем SHA;
 - артефакты:
   - `docs/workshop/team-demo-scenario.md`;
   - `docs/workshop/demo-project.md`;
+  - `docs/workshop/real-repository-dry-run.md`;
   - `docs/workshop/10-minute-demo.md`;
-- фактический evidence level: pending CI;
-- что не проверено: реальный timed rehearsal и реализация отдельного demo repository.
+- фактический evidence level: E1 для содержимого документации, E2 после зелёного template CI;
+- что не проверено: фактический полный прогон отдельного demo repository и timed rehearsal.
 
 ## Review
 
-- self-review: сценарий проверен на последовательность, timing, fallback и соответствие process docs;
-- independent review artifact: pending;
-- остаточные замечания: после сценария отдельной Task собрать фактический demo repository и прогнать rehearsal.
+- self-review: сценарий и runbook проверены на последовательность, timing, fallback и соответствие process docs;
+- independent review artifact: внешняя CodeRabbit review в этом repository не запускается автоматически из-за ограничения текущей конфигурации/репозитория; отдельное исключение пока не зафиксировано;
+- остаточные замечания: следующей Task собрать фактический demo repository и выполнить runbook, записав реальные отклонения.
 
 ## Traceability
 
-- запрос владельца на сценарий командной презентации → TEMPLATE-3;
+- запрос владельца на сценарий командной презентации и подробный тестовый прогон → TEMPLATE-3;
 - TEMPLATE-3 → workshop docs;
-- Task → commit/PR: будет заполнено после публикации.
+- Task → PR: `#3 docs: add reproducible team demo scenario`;
