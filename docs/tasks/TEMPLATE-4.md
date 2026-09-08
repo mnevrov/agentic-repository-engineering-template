@@ -20,7 +20,8 @@
 - downstream наследовал `TEMPLATE-*` Tasks и telemetry source repository;
 - TODO state и Task status могли расходиться;
 - runbook преждевременно делал integration discovery зелёным до появления настоящего integration test;
-- dry-run успешно работал на Python 3.10, поэтому 3.11+ не подтверждено как обязательное требование.
+- dry-run успешно работал на Python 3.10, поэтому 3.11+ не подтверждено как обязательное требование;
+- CI hardening выявил historical telemetry row, случайно изменённую при раннем переносе tests; append-only history восстановлена, а checker теперь диагностирует конкретную row/fields при mismatch.
 
 ## Объём
 
@@ -35,7 +36,8 @@
 - проверять TODO state ↔ Task status;
 - обновить README, onboarding и dry-run runbook;
 - оставить integration gate fail-closed до настоящего integration test;
-- добавить regression tests initializer и task-state consistency.
+- добавить regression tests initializer и task-state consistency;
+- сохранить строгую append-only telemetry semantics и улучшить диагностику mismatch.
 
 ### Не входит
 
@@ -46,17 +48,17 @@
 
 ## Критерии приёмки
 
-- [ ] AC-1: `make test-template` запускает только `template_tests/` и fail-closed при отсутствии tests.
-- [ ] AC-2: `scripts/init-project` удаляет source Tasks/telemetry из downstream, не затрагивая unrelated Tasks.
-- [ ] AC-3: initializer защищён от случайного повторного запуска.
-- [ ] AC-4: initializer создаёт bootstrap Task, TODO Ready и честные project placeholders.
-- [ ] AC-5: `repo-doctor` ловит рассинхрон TODO state ↔ Task status.
-- [ ] AC-6: runbook не содержит zero-work project/integration test discovery.
-- [ ] AC-7: до DEMO-3 integration gate остаётся `NOT CONFIGURED`.
-- [ ] AC-8: onboarding явно требует `scripts/init-project` после создания downstream.
-- [ ] AC-9: source CI продолжает проверять placeholders `check/test/test-integration`.
-- [ ] AC-10: template tooling regression tests проходят.
-- [ ] AC-11: CI проходит.
+- [x] AC-1: `make test-template` запускает только `template_tests/` и fail-closed при отсутствии tests.
+- [x] AC-2: `scripts/init-project` удаляет source Tasks/telemetry из downstream, не затрагивая unrelated Tasks.
+- [x] AC-3: initializer защищён от случайного повторного запуска.
+- [x] AC-4: initializer создаёт bootstrap Task, TODO Ready и честные project placeholders.
+- [x] AC-5: `repo-doctor` ловит рассинхрон TODO state ↔ Task status.
+- [x] AC-6: runbook не содержит zero-work project/integration test discovery.
+- [x] AC-7: до DEMO-3 integration gate остаётся `NOT CONFIGURED`.
+- [x] AC-8: onboarding явно требует `scripts/init-project` после создания downstream.
+- [x] AC-9: source CI продолжает проверять placeholders `check/test/test-integration`.
+- [x] AC-10: template tooling regression tests проходят.
+- [x] AC-11: CI проходит.
 - [ ] AC-12: independent clean-context review не имеет нерешённых P0/P1.
 
 ## Архитектурные ограничения
@@ -65,7 +67,8 @@
 - initialization детерминирована;
 - повторный destructive запуск требует `--force`;
 - `NOT CONFIGURED` не считается PASS;
-- фиктивные tests ради зелёного gate запрещены.
+- фиктивные tests ради зелёного gate запрещены;
+- historical telemetry rows immutable по содержимому и порядку.
 
 ## План проверки
 
@@ -79,16 +82,28 @@
 
 ## Доказательства
 
-Заполняется после выполнения.
+- GitHub Actions: run `34224444271`, conclusion `success` на head `0ef76c7436bdb5a14ba594a8ed8b1e52f7de5383`.
+- `./scripts/repo-doctor`: PASS, включая TODO/Task status consistency.
+- `python3 scripts/validate-telemetry.py`: PASS, 6 source cycles.
+- append-only contract: `preserved 5 existing row(s), appended 1`.
+- telemetry-required contract: `1 row(s) appended for 18 substantive changed file(s)`.
+- `make test-template`: 12 tests, PASS.
+- source `make check`: expected `NOT CONFIGURED`, exit 2.
+- source `make test`: expected `NOT CONFIGURED`, exit 2.
+- source `make test-integration`: expected `NOT CONFIGURED`, exit 2.
+- initializer mode: `scripts/init-project` исправлен на executable `100755` после отдельной проверки Git tree; повторный CI на этом head PASS.
+- initial CI failures по telemetry append-only не скрыты workaround'ом: восстановлен historical `TEMPLATE-1.changed_files`, потерянный в ранней ветке; guard сохранён строгим и теперь сообщает конкретную row/fields.
+- фактический evidence level до independent review: E3 (regression tooling tests + GitHub Actions integration).
+- что не проверено: independent clean-context review текущего финального HEAD.
 
 ## Review
 
-- self-review:
+- self-review: dry-run findings сопоставлены с implementation/docs; CI проверил initializer regression suite, task-state consistency, telemetry contracts и source fail-closed placeholders.
 - independent review artifact: `docs/reviews/TEMPLATE-4-review.md`
-- остаточные замечания:
+- остаточные замечания: independent review pending.
 
 ## Traceability
 
 - real dry-run findings → TEMPLATE-4;
-- task → evidence:
-- task → commits/PR:
+- task → evidence: GitHub Actions run `34224444271` + `template_tests/` + updated onboarding/runbook;
+- task → commits/PR: draft PR #4 `fix: harden downstream bootstrap after real dry-run`; reviewed implementation head должен быть зафиксирован после этой evidence update.
