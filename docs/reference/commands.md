@@ -2,13 +2,37 @@
 
 Краткий справочник основных команд шаблона. Полное объяснение процесса находится в [`../GETTING_STARTED.md`](../GETTING_STARTED.md).
 
+## Инициализация downstream-проекта
+
+После **Use this template** или локального копирования выполните:
+
+```bash
+./scripts/init-project "Название проекта"
+```
+
+Опционально задайте bootstrap Task явно:
+
+```bash
+./scripts/init-project "Mini Task Board" \
+  --bootstrap-id DEMO-BOOTSTRAP \
+  --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
+```
+
+Initializer очищает source `TEMPLATE-*`/`EXAMPLE-1` Tasks, inherited telemetry и template-only publish artifacts, затем создаёт честный project bootstrap context.
+
+Повторный запуск блокируется. `--force` используйте только для осознанной реинициализации.
+
 ## Диагностика репозитория
 
 ```bash
 ./scripts/repo-doctor
 ```
 
-Проверяет наличие обязательных файлов каркаса и некоторые очевидные secret-like patterns.
+Проверяет:
+
+- обязательные файлы каркаса;
+- согласованность `TODO Ready/In progress/Planned/Done` и `**Статус:**` Task;
+- некоторые очевидные secret-like patterns.
 
 Успех:
 
@@ -22,9 +46,9 @@ Repository engineering skeleton looks consistent.
 make test-template
 ```
 
-Запускает тесты служебной механики repository engineering template.
+Запускает только `template_tests/`.
 
-Это **не тесты вашего продукта**.
+Это **не product tests**. Gate fail-closed при отсутствии `template_tests/` или matching tests.
 
 ## Project checks
 
@@ -32,15 +56,11 @@ make test-template
 make check
 ```
 
-После настройки проекта должен запускать реальные быстрые проверки: lint/static analysis/compile/format verification или эквивалент.
+После bootstrap должен запускать реальные быстрые проверки: lint/static analysis/compile/format verification или эквивалент.
 
-В исходном шаблоне намеренно возвращает:
+В исходном template и в свежем downstream до настройки намеренно возвращает `NOT CONFIGURED` с ненулевым кодом.
 
-```text
-NOT CONFIGURED
-```
-
-с ненулевым кодом.
+Gate не должен возвращать 0, если входные файлы/проверки отсутствуют.
 
 ## Unit/contract tests
 
@@ -48,7 +68,9 @@ NOT CONFIGURED
 make test
 ```
 
-После настройки должен запускать основной набор автоматических тестов проекта.
+После настройки запускает основной набор product tests из `tests/`.
+
+Если используется discovery, добавьте guard на наличие хотя бы одного matching test. Zero-test discovery с exit 0 — false-green.
 
 ## Integration/e2e tests
 
@@ -56,7 +78,9 @@ make test
 make test-integration
 ```
 
-Используйте для integration/e2e, когда они применимы.
+Пока реальных integration/e2e tests нет, оставляйте target `NOT CONFIGURED`.
+
+Не заменяйте placeholder на пустой discovery только ради зелёного результата. Настраивайте target одновременно с появлением настоящего integration scenario.
 
 ## Создание Task
 
@@ -64,15 +88,9 @@ make test-integration
 ./scripts/new-task TASK-17 "Короткое название"
 ```
 
-Создаёт:
+Создаёт `docs/tasks/TASK-17.md` из `.ai/templates/TASK.md`.
 
-```text
-docs/tasks/TASK-17.md
-```
-
-из `.ai/templates/TASK.md`.
-
-Если файл уже существует, скрипт завершится ошибкой и не перезапишет его.
+После перевода задачи между `Ready / In progress / Planned / Done` синхронно обновляйте поле `**Статус:**`. `repo-doctor` проверяет это автоматически.
 
 ## Запись telemetry
 
@@ -112,7 +130,9 @@ partial
 aborted
 ```
 
-`passed` используйте только когда применимые gates действительно завершены.
+`passed` используйте только когда применимые gates действительно завершены. `NOT CONFIGURED` не является PASS.
+
+Model/provider передавайте только когда они реально известны.
 
 ## Проверка telemetry
 
@@ -138,11 +158,9 @@ make telemetry-summary
 python3 scripts/telemetry-summary.py
 ```
 
-Показывает агрегированные метрики по записанным cycles.
-
 ## Проверка append-only telemetry
 
-Обычно запускается CI. Для диагностики вручную:
+Обычно запускается CI:
 
 ```bash
 python3 scripts/check-telemetry-append-only.py --base-ref <git-ref>
@@ -156,19 +174,29 @@ python3 scripts/check-telemetry-append-only.py --base-ref <git-ref>
 python3 scripts/check-telemetry-required.py --base-ref <git-ref>
 ```
 
-Если между base ref и текущим состоянием есть содержательные изменения, должна появиться новая telemetry row.
+## Проверка согласованности TODO/Task
+
+Отдельно от `repo-doctor`:
+
+```bash
+python3 scripts/check-task-state.py
+```
+
+Пример ошибки:
+
+```text
+DEMO-1: TODO expects 'ready', task status is 'planned'
+```
 
 ## Запуск AI-инструмента
 
-Из корня репозитория, если соответствующий CLI установлен:
+Из корня repository:
 
 ```bash
 opencode
 codex
 claude
 ```
-
-После запуска используйте `START_PROMPT.md`.
 
 Для Claude Code:
 
@@ -177,9 +205,11 @@ claude
 /iterate
 ```
 
+`/develop` — обычный полный цикл одной bounded Task. `/iterate` — небольшое архитектурное/планировочное изменение.
+
 ## Перед commit
 
-Минимальный набор после полной настройки проекта:
+После полной настройки проекта:
 
 ```bash
 ./scripts/repo-doctor
@@ -191,11 +221,13 @@ git status
 git diff
 ```
 
-При необходимости добавьте:
+Если integration gate уже реально настроен:
 
 ```bash
 make test-integration
 ```
+
+Если он ещё не применим, ожидаемый `NOT CONFIGURED` должен быть явно зафиксирован в Task evidence.
 
 ## Типичный Git flow
 
@@ -208,4 +240,4 @@ git commit -m "TASK-17 short description"
 git push -u origin task/TASK-17
 ```
 
-Имена веток и формат commit message можно заменить на принятый в вашей команде стандарт.
+Имена веток и commit convention заменяйте на принятые в вашей команде.
