@@ -18,7 +18,7 @@ test-integration:
 	@exit 2
 
 test-template:
-	python3 -m unittest discover -s tests -p 'test_*.py'
+	python3 -m unittest discover -s template_tests -p 'test_*.py'
 
 telemetry-check:
 	python3 scripts/validate-telemetry.py
