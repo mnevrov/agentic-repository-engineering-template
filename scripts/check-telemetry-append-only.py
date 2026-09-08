@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import subprocess
 from pathlib import Path
 
@@ -12,9 +13,9 @@ args = p.parse_args()
 root = Path(__file__).resolve().parents[1]
 rel = TELEMETRY_PATH.relative_to(root)
 
-# Validate the current file first.
+# Validate and parse the current file first.
 try:
-    load_jsonl()
+    new_rows = load_jsonl()
 except ValueError as exc:
     raise SystemExit(str(exc))
 
@@ -24,17 +25,31 @@ proc = subprocess.run(
     text=True,
     capture_output=True,
 )
+
+old_rows = []
 if proc.returncode == 0:
-    old_lines = proc.stdout.splitlines()
-else:
-    # The telemetry file may legitimately not exist on the base ref yet.
-    old_lines = []
+    for line_no, line in enumerate(proc.stdout.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"Base telemetry is invalid JSON on line {line_no}: {exc}"
+            ) from exc
+        if not isinstance(row, dict):
+            raise SystemExit(f"Base telemetry line {line_no} must be a JSON object")
+        old_rows.append(row)
 
-new_lines = TELEMETRY_PATH.read_text(encoding="utf-8").splitlines() if TELEMETRY_PATH.exists() else []
-
-if len(new_lines) < len(old_lines):
+if len(new_rows) < len(old_rows):
     raise SystemExit("Telemetry is not append-only: existing rows were removed.")
-if new_lines[: len(old_lines)] != old_lines:
+
+# Compare row content, not incidental JSON formatting. Changing any historical
+# value or row order still fails; whitespace/key-order normalization does not.
+if new_rows[: len(old_rows)] != old_rows:
     raise SystemExit("Telemetry is not append-only: existing rows were modified or reordered.")
 
-print(f"telemetry append-only: preserved {len(old_lines)} existing row(s), appended {len(new_lines)-len(old_lines)}")
+print(
+    f"telemetry append-only: preserved {len(old_rows)} existing row(s), "
+    f"appended {len(new_rows)-len(old_rows)}"
+)
