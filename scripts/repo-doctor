@@ -18,6 +18,7 @@ required=(
   .ai/templates/TASK.md
   .ai/templates/REVIEW.md
   .ai/schemas/cycle.schema.json
+  scripts/check-task-state.py
   scripts/check-telemetry-append-only.py
   scripts/check-telemetry-required.py
 )
@@ -31,6 +32,15 @@ for f in "${required[@]}"; do
     failed=1
   fi
 done
+
+if [[ -f scripts/check-task-state.py ]]; then
+  if python3 scripts/check-task-state.py; then
+    echo '[ OK ] TODO/task statuses are consistent'
+  else
+    echo '[FAIL] TODO/task status mismatch' >&2
+    failed=1
+  fi
+fi
 
 if grep -RInE '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})' \
   --exclude-dir=.git --exclude='*.zip' . >/tmp/repo-doctor-secrets.$$ 2>/dev/null; then
