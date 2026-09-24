@@ -34,3 +34,22 @@ CodeRabbit показал warning по docstring coverage. Он не являе�
 - существующие brownfield regression tests сохраняются.
 
 Точный final HEAD после этого closure commit должен снова пройти GitHub CI и independent external re-review. Результат final-HEAD re-review хранится в PR #5, а не дописывается в этот файл после review, чтобы не сдвигать уже проверенный HEAD.
+
+## Независимый clean-context review — round 2
+
+Exact reviewed HEAD: `917fc172cc658d414409ac95a965fa31ba25626a`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/8/0/0`. Blocking areas:
+
+1. full-profile secret scan excluded tracked build/vendor/large content;
+2. `repo-audit --output` could overwrite target-repository files;
+3. adoption doctor was not stage-aware;
+4. mapped repository-local paths could escape through absolute/`..`/symlink paths;
+5. placeholders and malformed nested config remained fail-open;
+6. `new-task --contract` allowed missing source/non-Git targets/dangling-symlink writes;
+7. telemetry wording remained unconditional in README/reference;
+8. PR CI metadata referenced the HEAD SHA while checkout actually tested GitHub's generated merge commit.
+
+All eight findings were accepted as valid and addressed in the subsequent review-fix commit with targeted regression coverage. A new clean-context review is required on the new exact HEAD.

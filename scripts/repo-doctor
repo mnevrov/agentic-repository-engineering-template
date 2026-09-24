@@ -23,9 +23,28 @@ SECRET_PATTERNS = [
     re.compile(rb'ghp_[A-Za-z0-9]{20,}'),
 ]
 ALLOWED_STAGES = {'minimum-context', 'repeatable-workflow', 'independent-verification', 'risk-aware'}
+STAGE_LEVEL = {
+    'minimum-context': 1,
+    'repeatable-workflow': 2,
+    'independent-verification': 3,
+    'risk-aware': 4,
+}
 ALLOWED_VERIFICATION = {'configured', 'not_configured', 'not_applicable'}
-SECRET_SCAN_IGNORE_DIRS = {'.git', 'node_modules', 'vendor', '.venv', 'venv', 'build', 'dist', '__pycache__'}
-SECRET_SCAN_BINARY_SUFFIXES = {'.zip', '.png', '.jpg', '.jpeg', '.gif', '.pdf', '.ico', '.woff', '.woff2'}
+CAPABILITY_REQUIREMENTS = {
+    'repeatable_workflow': (
+        'task_contract', 'acceptance_criteria', 'evidence', 'definition_of_done',
+    ),
+    'independent_verification': (
+        'review_mechanism', 'exact_sha_diff_evidence', 'ci_pr_linkage',
+    ),
+    'risk_aware': (
+        'risk_model', 'high_risk_gates', 'adversarial_review', 'technical_enforcement',
+    ),
+}
+PLACEHOLDER_RE = re.compile(
+    r'^(?:todo(?::.*)?|tbd|unknown|not[ _-]?specified|not[ _-]?set|unset|changeme|replace[ _-]?me|n/?a|<.*>)$',
+    re.IGNORECASE,
+)
 GIT_REPOSITORY_ENV_VARS = {
     'GIT_DIR',
     'GIT_WORK_TREE',
@@ -39,7 +58,6 @@ GIT_REPOSITORY_ENV_VARS = {
 }
 
 
-
 def clean_git_env() -> dict[str, str]:
     """Return the current environment without Git repository-location overrides."""
     env = os.environ.copy()
@@ -48,39 +66,86 @@ def clean_git_env() -> dict[str, str]:
     return env
 
 
-def git_repo(repo: Path) -> bool:
-    """Return whether repo is a Git work tree, ignoring inherited Git overrides."""
+def run_git(repo: Path, *args: str, text: bool = True) -> subprocess.CompletedProcess:
+    """Run Git against repo regardless of inherited repository-location variables."""
     return subprocess.run(
-        ['git', 'rev-parse', '--is-inside-work-tree'],
+        ['git', *args],
         cwd=repo,
-        text=True,
+        text=text,
         capture_output=True,
         env=clean_git_env(),
-    ).returncode == 0
+    )
+
+
+def git_repo(repo: Path) -> bool:
+    """Return whether repo is a Git work tree, ignoring inherited Git overrides."""
+    return run_git(repo, 'rev-parse', '--is-inside-work-tree').returncode == 0
+
+
+def git_toplevel(repo: Path) -> Path | None:
+    """Return the resolved Git worktree root or None."""
+    proc = run_git(repo, 'rev-parse', '--show-toplevel')
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).resolve()
+
+
+def nul_paths(data: bytes) -> list[str]:
+    """Decode NUL-delimited Git paths without losing unusual filesystem bytes."""
+    return [os.fsdecode(item) for item in data.split(b'\0') if item]
 
 
 def scan_secret_locations(repo: Path) -> list[str]:
-    """Scan relevant tracked and untracked working-tree files without printing secret values."""
+    """Scan tracked plus relevant untracked files without exposing secret values."""
     hits: list[str] = []
-    for root, dirs, files in os.walk(repo):
-        dirs[:] = [d for d in dirs if d not in SECRET_SCAN_IGNORE_DIRS]
-        root_path = Path(root)
-        for name in files:
-            path = root_path / name
-            try:
-                rel = path.relative_to(repo).as_posix()
-                if path.is_symlink() or path.stat().st_size > 2_000_000 or path.suffix.lower() in SECRET_SCAN_BINARY_SUFFIXES:
-                    continue
-                data = path.read_bytes()
-            except (OSError, ValueError):
+
+    tracked_proc = run_git(repo, 'ls-files', '--cached', '-z', text=False)
+    untracked_proc = run_git(repo, 'ls-files', '--others', '--exclude-standard', '-z', text=False)
+    if tracked_proc.returncode != 0 or untracked_proc.returncode != 0:
+        return hits
+
+    tracked = nul_paths(tracked_proc.stdout)
+    untracked = nul_paths(untracked_proc.stdout)
+
+    def scan_bytes(rel: str, data: bytes) -> None:
+        for number, line in enumerate(data.splitlines(), 1):
+            if any(pattern.search(line) for pattern in SECRET_PATTERNS):
+                hits.append(f'{rel}:{number}')
+
+    # Preserve the Base contract: tracked content is scanned regardless of build/vendor/etc.
+    # Worktree bytes are preferred so unstaged secrets are visible; tracked symlinks are read
+    # from the index instead of following a link outside the repository.
+    for rel in tracked:
+        if Path(rel).suffix.lower() == '.zip':
+            continue
+        path = repo / rel
+        try:
+            if path.is_symlink():
+                proc = run_git(repo, 'show', f':{rel}', text=False)
+                if proc.returncode == 0:
+                    scan_bytes(rel, proc.stdout)
+            elif path.is_file():
+                scan_bytes(rel, path.read_bytes())
+        except OSError:
+            continue
+
+    # Relevant untracked means non-ignored files. Do not follow untracked symlinks.
+    for rel in untracked:
+        if Path(rel).suffix.lower() == '.zip':
+            continue
+        path = repo / rel
+        try:
+            if path.is_symlink() or not path.is_file():
                 continue
-            for n, line in enumerate(data.splitlines(), 1):
-                if any(pattern.search(line) for pattern in SECRET_PATTERNS):
-                    hits.append(f'{rel}:{n}')
-    return hits
+            scan_bytes(rel, path.read_bytes())
+        except OSError:
+            continue
+
+    return sorted(set(hits))
 
 
 def template_mode(repo: Path) -> int:
+    """Validate the strict full-profile template contract."""
     failed = False
     for rel in TEMPLATE_REQUIRED:
         if (repo / rel).is_file():
@@ -109,37 +174,331 @@ def template_mode(repo: Path) -> int:
     return 0
 
 
-def iter_source_paths(data: dict) -> list[tuple[str, str]]:
-    found: list[tuple[str, str]] = []
-    sources = data.get('sources', {})
+def is_placeholder(value: object) -> bool:
+    """Return True for empty/template sentinel values that are not real configuration."""
+    return not isinstance(value, str) or not value.strip() or bool(PLACEHOLDER_RE.fullmatch(value.strip()))
+
+
+def validate_local_path(repo: Path, value: object, label: str, require_exists: bool) -> tuple[bool, str, Path | None]:
+    """Validate a repository-local path and reject absolute, traversal, or symlink escape."""
+    if not isinstance(value, str) or not value.strip():
+        return False, f'{label} must be a non-empty repository-relative path', None
+    raw = Path(value)
+    if raw.is_absolute() or '..' in raw.parts:
+        return False, f'{label} must be repository-relative without ..: {value}', None
+
+    root = repo.resolve()
+    resolved = (root / raw).resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return False, f'{label} escapes repository: {value}', None
+
+    if require_exists and not resolved.exists():
+        return False, f'{label} does not exist: {value}', resolved
+    return True, '', resolved
+
+
+def validate_string_list(value: object, label: str) -> tuple[bool, list[str]]:
+    """Validate a JSON array of non-empty strings."""
+    if not isinstance(value, list):
+        print(f'[CONFLICT] {label} must be a list')
+        return False, []
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        print(f'[CONFLICT] {label} must contain only non-empty strings')
+        return False, []
+    return True, value
+
+
+def validate_source_paths(repo: Path, data: dict) -> tuple[bool, bool]:
+    """Validate source section types and all repository-local mapped paths."""
+    invalid = False
+    incomplete = False
+    sources = data.get('sources')
+    if sources is None:
+        print('[NOT_CONFIGURED] sources mapping')
+        return False, True
     if not isinstance(sources, dict):
-        return found
-    instructions = sources.get('instructions', {})
-    if isinstance(instructions, dict):
+        print('[CONFLICT] sources must be an object')
+        return True, False
+
+    instructions = sources.get('instructions')
+    if instructions is None:
+        print('[NOT_CONFIGURED] sources.instructions')
+        incomplete = True
+    elif not isinstance(instructions, dict):
+        print('[CONFLICT] sources.instructions must be an object')
+        invalid = True
+    else:
         primary = instructions.get('primary')
-        if isinstance(primary, str) and primary:
-            found.append(('instructions.primary', primary))
+        if is_placeholder(primary):
+            print('[NOT_CONFIGURED] sources.instructions.primary')
+            incomplete = True
+        else:
+            ok, reason, _ = validate_local_path(repo, primary, 'sources.instructions.primary', True)
+            if not ok:
+                print(f'[CONFLICT] {reason}')
+                invalid = True
+            else:
+                print(f'[EXISTING_EQUIVALENT] instructions.primary: {primary}')
+
         also = instructions.get('also_read', [])
-        if isinstance(also, list):
-            found.extend(('instructions.also_read', x) for x in also if isinstance(x, str) and x)
+        ok_list, also_paths = validate_string_list(also, 'sources.instructions.also_read')
+        invalid |= not ok_list
+        if ok_list:
+            for rel in also_paths:
+                ok, reason, _ = validate_local_path(repo, rel, 'sources.instructions.also_read', True)
+                if not ok:
+                    print(f'[CONFLICT] {reason}')
+                    invalid = True
+                else:
+                    print(f'[EXISTING_EQUIVALENT] instructions.also_read: {rel}')
+
     for key in ('architecture', 'decisions', 'ci'):
-        section = sources.get(key, {})
-        if isinstance(section, dict):
-            paths = section.get('paths', [])
-            if isinstance(paths, list):
-                found.extend((f'{key}.paths', x) for x in paths if isinstance(x, str) and x)
-    return found
+        section = sources.get(key)
+        if section is None:
+            print(f'[OPTIONAL] sources.{key} not mapped')
+            continue
+        if not isinstance(section, dict):
+            print(f'[CONFLICT] sources.{key} must be an object')
+            invalid = True
+            continue
+
+        if key == 'decisions':
+            marker = section.get('kind')
+            if marker is not None and is_placeholder(marker):
+                print('[CONFLICT] sources.decisions.kind is a placeholder')
+                invalid = True
+        else:
+            marker = section.get('status')
+            if marker is not None and is_placeholder(marker):
+                print(f'[CONFLICT] sources.{key}.status is a placeholder')
+                invalid = True
+
+        ok_list, section_paths = validate_string_list(section.get('paths', []), f'sources.{key}.paths')
+        invalid |= not ok_list
+        if ok_list:
+            for rel in section_paths:
+                ok, reason, _ = validate_local_path(repo, rel, f'sources.{key}.paths', True)
+                if not ok:
+                    print(f'[CONFLICT] {reason}')
+                    invalid = True
+                else:
+                    print(f'[EXISTING_EQUIVALENT] {key}.paths: {rel}')
+
+    return invalid, incomplete
 
 
-def adoption_mode(repo: Path) -> int:
+def validate_tasks(repo: Path, data: dict) -> tuple[bool, bool]:
+    """Validate the external/local task source and local execution-contract directory."""
+    invalid = False
+    incomplete = False
+    sources = data.get('sources') if isinstance(data.get('sources'), dict) else {}
+    tasks = sources.get('tasks') if isinstance(sources, dict) else None
+
+    if tasks is None:
+        print('[NOT_CONFIGURED] sources.tasks')
+        return False, True
+    if not isinstance(tasks, dict):
+        print('[CONFLICT] sources.tasks must be an object')
+        return True, False
+
+    kind = tasks.get('kind')
+    if is_placeholder(kind):
+        print('[NOT_CONFIGURED] sources.tasks.kind')
+        incomplete = True
+    else:
+        print(f'[ OK ] task source kind={kind}')
+
+    reference = tasks.get('reference')
+    if is_placeholder(reference):
+        print('[NOT_CONFIGURED] sources.tasks.reference')
+        incomplete = True
+    else:
+        print(f'[ OK ] task source reference={reference}')
+
+    contract_dir = tasks.get('local_contract_dir')
+    if is_placeholder(contract_dir):
+        print('[NOT_CONFIGURED] sources.tasks.local_contract_dir')
+        incomplete = True
+    else:
+        ok, reason, resolved = validate_local_path(repo, contract_dir, 'sources.tasks.local_contract_dir', False)
+        if not ok:
+            print(f'[CONFLICT] {reason}')
+            invalid = True
+        elif resolved is not None and resolved.exists():
+            print(f'[ OK ] local contract directory: {contract_dir}')
+        else:
+            print(f'[OPTIONAL] local contract directory not created yet: {contract_dir}')
+
+    return invalid, incomplete
+
+
+def validate_verification(data: dict) -> tuple[bool, bool]:
+    """Validate fail-closed project verification mapping."""
+    invalid = False
+    incomplete = False
+    verification = data.get('verification')
+    if verification is None:
+        print('[NOT_CONFIGURED] verification mapping')
+        return False, True
+    if not isinstance(verification, dict):
+        print('[CONFLICT] verification must be an object')
+        return True, False
+
+    for name in ('check', 'test', 'integration'):
+        gate = verification.get(name)
+        if gate is None:
+            if name in {'check', 'test'}:
+                print(f'[NOT_CONFIGURED] verification.{name} not mapped')
+                incomplete = True
+            else:
+                print(f'[OPTIONAL] verification.{name} not mapped')
+            continue
+
+        if not isinstance(gate, dict):
+            print(f'[CONFLICT] verification.{name} must be an object')
+            invalid = True
+            continue
+        status = gate.get('status')
+        if status not in ALLOWED_VERIFICATION:
+            print(f'[CONFLICT] verification.{name}.status invalid')
+            invalid = True
+            continue
+
+        if status == 'configured':
+            command = gate.get('command')
+            if is_placeholder(command):
+                print(f'[CONFLICT] verification.{name} configured with placeholder/missing command')
+                invalid = True
+            else:
+                print(f'[EXISTING_EQUIVALENT] verification.{name}: {command}')
+        elif status == 'not_applicable':
+            reason = gate.get('reason')
+            if is_placeholder(reason):
+                print(f'[CONFLICT] verification.{name} not_applicable with placeholder/missing reason')
+                invalid = True
+            else:
+                print(f'[OPTIONAL] verification.{name}: not applicable')
+        else:
+            print(f'[NOT_CONFIGURED] verification.{name}')
+            incomplete = True
+
+    return invalid, incomplete
+
+
+def validate_capability_entry(section: dict, section_name: str, key: str) -> tuple[bool, bool]:
+    """Validate one stage capability as configured and traceable."""
+    entry = section.get(key)
+    if entry is None:
+        print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
+        return False, True
+    if not isinstance(entry, dict):
+        print(f'[CONFLICT] capabilities.{section_name}.{key} must be an object')
+        return True, False
+
+    status = entry.get('status')
+    if status == 'not_configured':
+        print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
+        return False, True
+    if status != 'configured':
+        print(f'[CONFLICT] capabilities.{section_name}.{key}.status must be configured or not_configured')
+        return True, False
+
+    reference = entry.get('reference')
+    if is_placeholder(reference):
+        print(f'[CONFLICT] capabilities.{section_name}.{key} configured without identifiable reference')
+        return True, False
+    print(f'[ OK ] capability {section_name}.{key}: {reference}')
+    return False, False
+
+
+def validate_stage_capabilities(data: dict, stage: str) -> tuple[bool, bool]:
+    """Require progressively stronger capabilities for adoption stages 2-4."""
+    invalid = False
+    incomplete = False
+    capabilities = data.get('capabilities', {})
+    if not isinstance(capabilities, dict):
+        print('[CONFLICT] capabilities must be an object')
+        return True, False
+
+    required_sections: list[str] = []
+    level = STAGE_LEVEL[stage]
+    if level >= 2:
+        required_sections.append('repeatable_workflow')
+    if level >= 3:
+        required_sections.append('independent_verification')
+    if level >= 4:
+        required_sections.append('risk_aware')
+
+    for section_name in required_sections:
+        section = capabilities.get(section_name)
+        if section is None:
+            print(f'[NOT_CONFIGURED] capabilities.{section_name}')
+            incomplete = True
+            continue
+        if not isinstance(section, dict):
+            print(f'[CONFLICT] capabilities.{section_name} must be an object')
+            invalid = True
+            continue
+        for key in CAPABILITY_REQUIREMENTS[section_name]:
+            bad, missing = validate_capability_entry(section, section_name, key)
+            invalid |= bad
+            incomplete |= missing
+
+    # Even for lower stages, present known sections must not be malformed.
+    for section_name in CAPABILITY_REQUIREMENTS:
+        if section_name in required_sections or section_name not in capabilities:
+            continue
+        if not isinstance(capabilities[section_name], dict):
+            print(f'[CONFLICT] capabilities.{section_name} must be an object')
+            invalid = True
+
+    return invalid, incomplete
+
+
+def validate_conflicts_and_questions(data: dict) -> tuple[bool, bool]:
+    """Validate explicit conflict/question lists without silently accepting malformed values."""
     invalid = False
     incomplete = False
 
-    if not git_repo(repo):
+    unresolved = data.get('unresolved_conflicts', [])
+    ok_unresolved, unresolved_items = validate_string_list(unresolved, 'unresolved_conflicts')
+    invalid |= not ok_unresolved
+    if ok_unresolved and unresolved_items:
+        for item in unresolved_items:
+            print(f'[CONFLICT] unresolved: {item}')
+        invalid = True
+    elif ok_unresolved:
+        print('[ OK ] no declared unresolved source conflicts')
+
+    questions = data.get('open_questions', [])
+    ok_questions, question_items = validate_string_list(questions, 'open_questions')
+    invalid |= not ok_questions
+    if ok_questions and question_items:
+        for item in question_items:
+            print(f'[NOT_CONFIGURED] open question: {item}')
+        incomplete = True
+    elif ok_questions:
+        print('[ OK ] no blocking open questions')
+
+    return invalid, incomplete
+
+
+def adoption_mode(repo: Path) -> int:
+    """Validate staged brownfield adoption mapping without requiring template layout."""
+    invalid = False
+    incomplete = False
+
+    top = git_toplevel(repo)
+    if top is None:
         print('[MISS] Git repository')
         print('Adoption configuration is invalid until the target is a Git repository.')
         return 1
-    print('[ OK ] Git repository')
+    if top != repo.resolve():
+        print(f'[CONFLICT] --repo must be the Git worktree root: {top}')
+        return 1
+    print('[ OK ] Git repository root')
 
     config_path = repo / '.agentic-repository.json'
     if not config_path.is_file():
@@ -152,12 +511,16 @@ def adoption_mode(repo: Path) -> int:
     except (OSError, json.JSONDecodeError) as exc:
         print(f'[CONFLICT] invalid .agentic-repository.json: {exc}')
         return 1
+    if not isinstance(data, dict):
+        print('[CONFLICT] .agentic-repository.json root must be an object')
+        return 1
 
     if data.get('schema_version') != 1:
         print('[CONFLICT] schema_version must be 1')
         invalid = True
     else:
         print('[ OK ] schema_version=1')
+
     if data.get('mode') != 'adoption':
         print('[CONFLICT] mode must be "adoption"')
         invalid = True
@@ -167,106 +530,42 @@ def adoption_mode(repo: Path) -> int:
     stage = data.get('stage')
     if stage not in ALLOWED_STAGES:
         print(f'[CONFLICT] stage must be one of: {", ".join(sorted(ALLOWED_STAGES))}')
-        invalid = True
-    else:
-        print(f'[ OK ] stage={stage}')
+        return 1
+    print(f'[ OK ] stage={stage}')
 
     precedence = data.get('source_of_truth_precedence')
-    if not isinstance(precedence, list) or not precedence or any(not isinstance(x, str) or not x for x in precedence) or len(set(precedence)) != len(precedence):
+    if not isinstance(precedence, list):
         print('[CONFLICT] source_of_truth_precedence must be a non-empty list of unique strings')
+        invalid = True
+    elif (
+        not precedence
+        or any(is_placeholder(item) for item in precedence)
+        or len(set(precedence)) != len(precedence)
+    ):
+        print('[CONFLICT] source_of_truth_precedence must be a non-empty list of unique non-placeholder strings')
         invalid = True
     else:
         print('[ OK ] source-of-truth precedence is explicit')
 
-    source_paths = iter_source_paths(data)
-    if not source_paths:
-        print('[NOT_CONFIGURED] no repository source paths mapped')
-        incomplete = True
-    for label, rel in source_paths:
-        if (repo / rel).exists():
-            print(f'[EXISTING_EQUIVALENT] {label}: {rel}')
-        else:
-            print(f'[CONFLICT] mapped source does not exist: {label}: {rel}')
-            invalid = True
+    bad, missing = validate_source_paths(repo, data)
+    invalid |= bad
+    incomplete |= missing
 
-    tasks = data.get('sources', {}).get('tasks', {}) if isinstance(data.get('sources'), dict) else {}
-    if not isinstance(tasks, dict) or not isinstance(tasks.get('kind'), str) or not tasks.get('kind'):
-        print('[NOT_CONFIGURED] sources.tasks.kind')
-        incomplete = True
-    else:
-        print(f"[ OK ] task source kind={tasks['kind']}")
-        reference = tasks.get('reference')
-        if not isinstance(reference, str) or not reference.strip() or reference.lstrip().upper().startswith('TODO'):
-            print('[NOT_CONFIGURED] sources.tasks.reference')
-            incomplete = True
-        else:
-            print(f'[ OK ] task source reference={reference}')
-    contract_dir = tasks.get('local_contract_dir') if isinstance(tasks, dict) else None
-    if isinstance(contract_dir, str) and contract_dir:
-        if (repo / contract_dir).exists():
-            print(f'[ OK ] local contract directory: {contract_dir}')
-        else:
-            print(f'[OPTIONAL] local contract directory not created yet: {contract_dir}')
-    else:
-        print('[NOT_CONFIGURED] sources.tasks.local_contract_dir')
-        incomplete = True
+    bad, missing = validate_tasks(repo, data)
+    invalid |= bad
+    incomplete |= missing
 
-    verification = data.get('verification')
-    if not isinstance(verification, dict) or not verification:
-        print('[NOT_CONFIGURED] verification mapping')
-        incomplete = True
-    else:
-        for name in ('check', 'test', 'integration'):
-            gate = verification.get(name)
-            if gate is None:
-                if name in {'check', 'test'}:
-                    print(f'[NOT_CONFIGURED] verification.{name} not mapped')
-                    incomplete = True
-                else:
-                    print(f'[OPTIONAL] verification.{name} not mapped')
-                continue
-            if not isinstance(gate, dict) or gate.get('status') not in ALLOWED_VERIFICATION:
-                print(f'[CONFLICT] verification.{name}.status invalid')
-                invalid = True
-                continue
-            status = gate['status']
-            if status == 'configured':
-                if not isinstance(gate.get('command'), str) or not gate['command'].strip():
-                    print(f'[CONFLICT] verification.{name} configured without command')
-                    invalid = True
-                else:
-                    print(f"[EXISTING_EQUIVALENT] verification.{name}: {gate['command']}")
-            elif status == 'not_applicable':
-                if not isinstance(gate.get('reason'), str) or not gate['reason'].strip():
-                    print(f'[CONFLICT] verification.{name} not_applicable without reason')
-                    invalid = True
-                else:
-                    print(f'[OPTIONAL] verification.{name}: not applicable')
-            else:
-                print(f'[NOT_CONFIGURED] verification.{name}')
-                incomplete = True
+    bad, missing = validate_verification(data)
+    invalid |= bad
+    incomplete |= missing
 
-    unresolved = data.get('unresolved_conflicts', [])
-    if not isinstance(unresolved, list):
-        print('[CONFLICT] unresolved_conflicts must be a list')
-        invalid = True
-    elif unresolved:
-        for item in unresolved:
-            print(f'[CONFLICT] unresolved: {item}')
-        invalid = True
-    else:
-        print('[ OK ] no declared unresolved source conflicts')
+    bad, missing = validate_stage_capabilities(data, stage)
+    invalid |= bad
+    incomplete |= missing
 
-    questions = data.get('open_questions', [])
-    if not isinstance(questions, list):
-        print('[CONFLICT] open_questions must be a list')
-        invalid = True
-    elif questions:
-        for item in questions:
-            print(f'[NOT_CONFIGURED] open question: {item}')
-        incomplete = True
-    else:
-        print('[ OK ] no blocking open questions')
+    bad, missing = validate_conflicts_and_questions(data)
+    invalid |= bad
+    incomplete |= missing
 
     print('[OPTIONAL] template telemetry is not required by early brownfield adoption unless explicitly enabled')
 
@@ -281,11 +580,12 @@ def adoption_mode(repo: Path) -> int:
 
 
 def main() -> None:
+    """CLI entry point."""
     p = argparse.ArgumentParser(description='Validate either the full template skeleton or staged brownfield adoption context.')
     group = p.add_mutually_exclusive_group()
     group.add_argument('--template', action='store_true', help='Strict full-template validation (default).')
     group.add_argument('--adoption', action='store_true', help='Validate .agentic-repository.json without requiring template layout.')
-    p.add_argument('--repo', type=Path, default=Path('.'), help='Repository to inspect (default: current directory).')
+    p.add_argument('--repo', type=Path, default=Path('.'), help='Repository root to inspect (default: current directory).')
     args = p.parse_args()
     repo = args.repo.resolve()
     if not repo.is_dir():

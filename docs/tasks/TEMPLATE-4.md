@@ -49,7 +49,7 @@
 - [x] Greenfield/full template regression подтверждался GitHub CI на implementation HEADs; final review-fix HEAD требует обычного повторного CI.
 - [x] `repo-doctor --adoption` различает ready / not configured / conflict без требования template skeleton.
 - [x] Existing task может получить локальный execution contract без миграции backlog.
-- [ ] Independent clean-context re-review exact final HEAD — выполняется после этого evidence/fix commit и фиксируется в PR #5, чтобы сам evidence commit не сдвигал reviewed HEAD.
+- [ ] Independent clean-context re-review нового exact final HEAD после round-2 fixes.
 
 ## План проверки
 
@@ -71,8 +71,9 @@
 
 - self-review: найдено и до independent review исправлено несколько edge cases (secret scan, path escape, untracked context, stage wording);
 - independent review artifact: `docs/reviews/TEMPLATE-4-review.md`;
-- first independent verdict: changes_required, 4 Major findings;
-- closure: implemented; final exact-HEAD external re-review pending after this file is committed;
+- independent round 1: 4 Major findings, fixed in `917fc172...`;
+- independent round 2 on `917fc172...`: 8 P1 findings, all accepted and addressed by the next review-fix commit;
+- closure: implementation + targeted regressions prepared; new exact-HEAD clean-context re-review required;
 - residual risk: provider-specific adapters remain thin adapters; generic process is defined in provider-neutral docs.
 
 ## Traceability

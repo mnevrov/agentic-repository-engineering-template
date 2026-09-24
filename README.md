@@ -192,7 +192,7 @@ commit / PR
 
 ## Телеметрия
 
-Каждая попытка работы записывается в `.ai/telemetry/cycles.jsonl`, включая `failed`, `partial` и `aborted`.
+В **greenfield/full profile** и в brownfield-профилях, где telemetry policy явно включена, каждая попытка работы записывается в `.ai/telemetry/cycles.jsonl`, включая `failed`, `partial` и `aborted`. Brownfield Stage 1 может отложить telemetry; точная семантика описана в [`docs/process/telemetry.md`](docs/process/telemetry.md).
 
 Пример:
 

@@ -187,13 +187,13 @@ python3 scripts/check-telemetry-append-only.py --base-ref <git-ref>
 
 ## Проверка обязательной новой telemetry row
 
-Обычно запускается CI:
+Используется в **greenfield/full profile** и других профилях, где telemetry policy включена:
 
 ```bash
 python3 scripts/check-telemetry-required.py --base-ref <git-ref>
 ```
 
-Если между base ref и текущим состоянием есть содержательные изменения, должна появиться новая telemetry row.
+В telemetry-enabled profile содержательное изменение требует новую telemetry row. Brownfield Stage 1 может отложить эту policy; см. [`../process/telemetry.md`](../process/telemetry.md).
 
 ## Запуск AI-инструмента
 

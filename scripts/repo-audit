@@ -297,7 +297,29 @@ def main() -> None:
     if args.output == '-':
         print(text, end='')
     else:
-        Path(args.output).write_text(text, encoding='utf-8')
+        requested = Path(args.output)
+        if not requested.is_absolute():
+            requested = (Path.cwd() / requested)
+        if requested.exists() or requested.is_symlink():
+            raise SystemExit(f'refusing to overwrite existing audit output: {requested}')
+
+        output_path = requested.resolve(strict=False)
+        repo_root = repo.resolve()
+        try:
+            output_path.relative_to(repo_root)
+        except ValueError:
+            pass
+        else:
+            raise SystemExit('audit output must be outside the target repository')
+
+        if not output_path.parent.is_dir():
+            raise SystemExit(f'audit output parent directory does not exist: {output_path.parent}')
+
+        try:
+            with output_path.open('x', encoding='utf-8') as handle:
+                handle.write(text)
+        except FileExistsError:
+            raise SystemExit(f'refusing to overwrite existing audit output: {output_path}')
 
 
 if __name__ == '__main__':

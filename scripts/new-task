@@ -2,15 +2,75 @@
 from __future__ import annotations
 
 import argparse
+import os
+import re
+import subprocess
 from pathlib import Path
+
+PLACEHOLDER_RE = re.compile(
+    r'^(?:todo(?::.*)?|tbd|unknown|not[ _-]?specified|not[ _-]?set|unset|changeme|replace[ _-]?me|n/?a|<.*>)$',
+    re.IGNORECASE,
+)
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
+
+
+def clean_git_env() -> dict[str, str]:
+    """Return environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
+
+
+def git_toplevel(path: Path) -> Path | None:
+    """Return the resolved Git worktree root for path."""
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'],
+        cwd=path,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    )
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).resolve()
+
+
+def is_placeholder(value: object) -> bool:
+    """Reject empty and template-sentinel values where a real reference is required."""
+    return not isinstance(value, str) or not value.strip() or bool(PLACEHOLDER_RE.fullmatch(value.strip()))
+
+
+def validate_relative_output(root: Path, requested: Path, parser: argparse.ArgumentParser) -> Path:
+    """Return a safe repository-local output directory without symlink traversal."""
+    if requested.is_absolute() or '..' in requested.parts:
+        parser.error('--output-dir must be a repository-relative path without ..')
+
+    current = root
+    for part in requested.parts:
+        current = current / part
+        if current.is_symlink():
+            parser.error(f'output path contains a symlink component: {current}')
+
+    output_dir = (root / requested).resolve(strict=False)
+    try:
+        output_dir.relative_to(root)
+    except ValueError:
+        parser.error('output directory escapes the target repository')
+    return output_dir
 
 
 def main() -> None:
+    """Create one full-profile Task or one execution contract tied to an existing task source."""
     parser = argparse.ArgumentParser(description='Create a full-profile Task or a minimal contract for an external existing-project task.')
-    parser.add_argument('--repo', type=Path, default=None, help='Target repository. Defaults to the repository containing this script.')
+    parser.add_argument('--repo', type=Path, default=None, help='Target repository root. Defaults to the repository containing this script.')
     parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
     parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
-    parser.add_argument('--source', default='not specified', help='External task reference, e.g. JIRA-1842 or GitHub issue URL.')
+    parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
     parser.add_argument('task_id')
     parser.add_argument('title', nargs='+')
     args = parser.parse_args()
@@ -21,41 +81,47 @@ def main() -> None:
         parser.error('invalid task id')
     if not title:
         parser.error('title must not be empty')
+    if args.contract and is_placeholder(args.source):
+        parser.error('--source with an identifiable existing task reference is required with --contract')
 
     template_root = Path(__file__).resolve().parents[1]
     target_root = args.repo.resolve() if args.repo is not None else template_root
     if not target_root.is_dir():
         parser.error(f'target repository directory does not exist: {target_root}')
 
+    top = git_toplevel(target_root)
+    if top is None:
+        parser.error(f'target is not a Git worktree: {target_root}')
+    if top != target_root:
+        parser.error(f'--repo must be the Git worktree root: {top}')
+
     template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
     template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
 
     if args.output_dir:
         requested = Path(args.output_dir)
-        if requested.is_absolute() or '..' in requested.parts:
-            parser.error('--output-dir must be a repository-relative path without ..')
-        output_dir = (target_root / requested).resolve()
     elif args.contract:
-        output_dir = (target_root / '.agentic/tasks').resolve()
+        requested = Path('.agentic/tasks')
     else:
-        output_dir = (target_root / 'docs/tasks').resolve()
+        requested = Path('docs/tasks')
 
-    try:
-        output_dir.relative_to(target_root)
-    except ValueError:
-        parser.error('output directory escapes the target repository')
+    output_dir = validate_relative_output(target_root, requested, parser)
     output_dir.mkdir(parents=True, exist_ok=True)
+
     out = output_dir / f'{task_id}.md'
-    if out.exists():
+    if out.exists() or out.is_symlink():
         raise SystemExit(f'already exists: {out}')
 
     content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
-    content = content.replace('EXTERNAL-TASK-REF', args.source, 1)
-    out.write_text(content, encoding='utf-8')
+    content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+
     try:
-        print(out.relative_to(target_root))
-    except ValueError:
-        print(out)
+        with out.open('x', encoding='utf-8') as handle:
+            handle.write(content)
+    except FileExistsError:
+        raise SystemExit(f'already exists: {out}')
+
+    print(out.relative_to(target_root))
 
 
 if __name__ == '__main__':

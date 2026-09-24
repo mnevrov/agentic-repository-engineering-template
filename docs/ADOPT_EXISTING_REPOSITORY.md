@@ -103,6 +103,8 @@ existing task → local contract → mapped repository context
 
 **Stage 4 — Risk-aware enforcement:** A/B/C либо existing risk model, stronger high-risk gates, adversarial review и technical enforcement.
 
+`repo-doctor --adoption` проверяет stage fail-closed. Для Stage 2 mapping должен явно подтвердить repeatable-workflow capabilities (Task contract, AC, evidence, DoD); Stage 3 дополнительно — review mechanism, exact SHA/diff evidence и CI/PR linkage; Stage 4 — risk model, high-risk gates, adversarial review и technical enforcement. Каждая configured capability содержит непустой `reference` на project-native mechanism/evidence. Простая смена значения `stage` без этих capabilities даёт `NOT_CONFIGURED`, а не false green.
+
 Telemetry обязательна в greenfield/full profile, но не prerequisite Stage 1 brownfield adoption.
 
 ## Что не автоматизируется
