@@ -43,15 +43,18 @@ CAPABILITY_REQUIREMENTS = {
     ),
 }
 PLACEHOLDER_HEAD_RE = re.compile(
-    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\\s:]|-(?!\\d))',
+    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\s:]|-(?!\d))',
     re.IGNORECASE,
 )
 PLACEHOLDER_PHRASE_RE = re.compile(
-    r'^(?:not\\s+(?:specified|set)|replace\\s+(?:me|this|with(?:\\s+.*)?)|'
-    r'to\\s+be\\s+(?:determined|decided)|n/?a)(?:$|[\\s:])',
+    r'^(?:not\s+(?:specified|set)|replace\s+(?:me|this|with(?:\s+.*)?)|'
+    r'to\s+be\s+(?:determined|decided)|n/?a)(?:$|[\s:])',
     re.IGNORECASE,
 )
-EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}GIT_REPOSITORY_ENV_VARS = {
+EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}$')
+LOCAL_TASK_KINDS = {'markdown-backlog', 'local-file'}
+EVIDENCE_REFERENCE_TYPES = {'path', 'url', 'external_id', 'command'}
+GIT_REPOSITORY_ENV_VARS = {
     'GIT_DIR',
     'GIT_WORK_TREE',
     'GIT_COMMON_DIR',

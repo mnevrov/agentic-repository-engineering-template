@@ -8,12 +8,12 @@ import subprocess
 from pathlib import Path
 
 PLACEHOLDER_HEAD_RE = re.compile(
-    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\\s:]|-(?!\\d))',
+    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\s:]|-(?!\d))',
     re.IGNORECASE,
 )
 PLACEHOLDER_PHRASE_RE = re.compile(
-    r'^(?:not\\s+(?:specified|set)|replace\\s+(?:me|this|with(?:\\s+.*)?)|'
-    r'to\\s+be\\s+(?:determined|decided)|n/?a)(?:$|[\\s:])',
+    r'^(?:not\s+(?:specified|set)|replace\s+(?:me|this|with(?:\s+.*)?)|'
+    r'to\s+be\s+(?:determined|decided)|n/?a)(?:$|[\s:])',
     re.IGNORECASE,
 )
 GIT_REPOSITORY_ENV_VARS = {

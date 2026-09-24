@@ -75,3 +75,7 @@ Accepted findings:
 5. workshop documentation still described merge-ref verification after CI moved to exact PR HEAD (P2).
 
 The subsequent fix changes capability references to typed evidence references, broadens sentinel detection without rejecting IDs like `TODO-123`, rejects external config symlinks and local task-source escapes, makes repo-audit stdout-only, uses descriptor-relative no-follow creation in new-task, and aligns the workshop with exact-HEAD CI.
+
+## Author fix after round-3 remediation CI
+
+The first remediation commit failed strict template CI before tests because a generated regex/constants block in `scripts/repo-doctor` was syntactically malformed. The same inspection also caught over-escaped whitespace regexes. Both scripts were corrected before the next independent review; this failed CI attempt is retained as evidence rather than hidden.
