@@ -2,13 +2,37 @@
 
 Краткий справочник основных команд шаблона. Полное объяснение процесса находится в [`../GETTING_STARTED.md`](../GETTING_STARTED.md).
 
+## Read-only audit существующего repository
+
+```bash
+/path/to/template/scripts/repo-audit --repo . --output /tmp/agentic-repository-audit.md
+```
+
+Audit обнаруживает common repository instructions, build/test signals, CI, architecture/ADR/RFC/backlog paths и candidate verification commands. Он не меняет target repository и не считает heuristic candidate authoritative command.
+
+```bash
+/path/to/template/scripts/repo-audit --repo . --format json
+```
+
 ## Диагностика репозитория
+
+
+Full-profile/greenfield (старое поведение сохранено):
 
 ```bash
 ./scripts/repo-doctor
+./scripts/repo-doctor --template
 ```
 
-Проверяет наличие обязательных файлов каркаса и некоторые очевидные secret-like patterns.
+Brownfield adoption:
+
+```bash
+/path/to/template/scripts/repo-doctor --adoption --repo .
+```
+
+В adoption mode отсутствие полного template skeleton не является ошибкой. Exit `0` означает consistent mapping, `2` — adoption context ещё не настроен/неполон, `1` — invalid mapping или unresolved conflict.
+
+Template mode проверяет обязательные файлы каркаса и secret-like patterns; значения возможных секретов не печатаются.
 
 Успех:
 
@@ -73,6 +97,19 @@ docs/tasks/TASK-17.md
 из `.ai/templates/TASK.md`.
 
 Если файл уже существует, скрипт завершится ошибкой и не перезапишет его.
+
+## Execution contract для existing tracker
+
+Jira/GitHub/GitLab/Markdown backlog остаётся task-management source of truth:
+
+```bash
+/path/to/template/scripts/new-task \
+  --repo . --contract \
+  --source JIRA-1842 \
+  JIRA-1842 "Короткое название"
+```
+
+По умолчанию создаётся только `.agentic/tasks/JIRA-1842.md`. Это scope/AC/verification/evidence contract одной итерации, а не копия tracker.
 
 ## Запись telemetry
 

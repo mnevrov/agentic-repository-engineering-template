@@ -4,7 +4,26 @@
 
 Шаблон не привязан к конкретному языку программирования или AI-инструменту. Его можно использовать с OpenCode, Codex CLI, Claude Code и другими coding agents.
 
+## Два равноправных режима использования
+
+### Новый проект — Greenfield
+
+Создайте новый repository из GitHub Template и следуйте [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md). Это full-profile путь с готовым repository skeleton, fail-closed project gates, Task/review artifacts и telemetry.
+
+### Существующий проект — Brownfield adoption
+
+**Не пересоздавайте проект из template и не копируйте его дерево поверх существующего repository.** Начните с read-only audit и staged adoption по [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md).
+
+```bash
+git clone --depth 1 https://github.com/mnevrov/agentic-repository-engineering-template.git /tmp/agentic-repository-template
+cd existing-project
+python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . --output /tmp/agentic-repository-audit.md
+```
+
+Затем используйте agent/subagent orchestration: discovery → verification → context/truth → gap analysis → при необходимости `grill-me` → Human Gate → минимальный adoption layer → одна существующая bounded Task. Existing build/test/CI, tracker, layout и engineering docs переиспользуются.
+
 ## С чего начать
+
 
 Если вы впервые открыли этот репозиторий, начните с подробной инструкции:
 
@@ -197,7 +216,9 @@ make telemetry-summary
 
 ## Навигация по документации
 
-- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — полный onboarding.
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — greenfield onboarding.
+- [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md) — brownfield adoption без перестройки существующего repository.
+- [`docs/process/agent-orchestration.md`](docs/process/agent-orchestration.md) — agent/subagent roles и `grill-me` escalation.
 - [`docs/INDEX.md`](docs/INDEX.md) — карта проектной памяти.
 - [`docs/reference/commands.md`](docs/reference/commands.md) — справочник команд.
 - [`docs/process/development-cycle.md`](docs/process/development-cycle.md) — полный рабочий цикл.

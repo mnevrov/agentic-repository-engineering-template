@@ -8,7 +8,9 @@
 
 ## Быстрые ссылки
 
-- [`GETTING_STARTED.md`](GETTING_STARTED.md) — начало работы.
+- [`GETTING_STARTED.md`](GETTING_STARTED.md) — новый проект / greenfield.
+- [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md) — существующий проект / brownfield adoption.
+- [`adoption/GAP_CHECKLIST.md`](adoption/GAP_CHECKLIST.md) — структурированный gap analysis.
 - [`reference/commands.md`](reference/commands.md) — справочник команд.
 - [`examples/first-agent-cycle.md`](examples/first-agent-cycle.md) — пример первого цикла.
 
@@ -30,7 +32,8 @@
 - [`process/code-review.md`](process/code-review.md) — уровни риска, independent review и исключения.
 - [`process/definition-of-done.md`](process/definition-of-done.md) — критерии завершения.
 - [`process/evidence-ladder.md`](process/evidence-ladder.md) — уровни силы доказательств E0–E5.
-- [`process/traceability.md`](process/traceability.md) — связь требований, ADR, Task, evidence и commit/PR.
+- [`process/traceability.md`](process/traceability.md) — связь requirements/task/evidence/review/commit без требования конкретного tracker.
+- [`process/agent-orchestration.md`](process/agent-orchestration.md) — brownfield agent/subagent workflow и Human Gate.
 - [`process/telemetry.md`](process/telemetry.md) — запись и анализ agentic cycles.
 
 ## Review
