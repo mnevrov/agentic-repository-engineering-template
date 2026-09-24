@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> Greenfield/full-profile defaults. При adoption существующего repository не перезаписывай его `CLAUDE.md`: используй `/adopt-existing`, project subagents и `/grill-me`, а source precedence зафиксируй после Human Gate.
+
 Используй `AGENTS.md` как общий контракт поведения агента.
 
 ## Начало сессии

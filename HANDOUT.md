@@ -1,5 +1,12 @@
 # Памятка: инженерный репозиторий для AI-разработки
 
+## Два режима
+
+- **Greenfield:** новый проект получает full repository-engineering skeleton.
+- **Brownfield:** существующий проект сначала проходит read-only discovery; template переиспользует его layout, CI, commands, tracker и docs, добавляя только минимальный context для следующей bounded Task.
+
+Brownfield workflow использует специализированные discovery/verification/context subagents, gap-analysis agent, adoption-orchestrator и `grill-me` только для вопросов, которые нельзя доказать из repository.
+
 ## Главная идея
 
 AI-агент не должен быть носителем памяти проекта. **Память проекта — сам репозиторий.**
