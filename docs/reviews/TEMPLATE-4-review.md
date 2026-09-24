@@ -79,3 +79,5 @@ The subsequent fix changes capability references to typed evidence references, b
 ## Author fix after round-3 remediation CI
 
 The first remediation commit failed strict template CI before tests because a generated regex/constants block in `scripts/repo-doctor` was syntactically malformed. The same inspection also caught over-escaped whitespace regexes. Both scripts were corrected before the next independent review; this failed CI attempt is retained as evidence rather than hidden.
+
+A second remediation CI attempt exposed duplicated trailing content after the first valid `main()` block in `scripts/repo-doctor`, producing `SyntaxError: unmatched ')'`. The file is now truncated to the intended single module body before any functional result is accepted.
