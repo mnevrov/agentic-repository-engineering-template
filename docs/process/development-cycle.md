@@ -75,7 +75,7 @@
 
 ## 9. Независимая проверка
 
-Обязательна для завершённой задачи. Использовать другой агент/модель или новую сессию без истории реализации. Reviewer получает только задачу/AC, инварианты и ADR, diff и фактические результаты проверок.
+Обязательна для full profile и brownfield Stage 3+. Использовать другой агент/модель или новую сессию без истории реализации. Reviewer получает только задачу/AC (или execution contract), релевантные invariants/decision sources, diff и фактические результаты проверок. На brownfield Stage 1–2 gate может быть явно deferred только если existing project policy не требует его уже сейчас.
 
 В full profile результат сохраняется как `docs/reviews/<TASK-ID>-review.md`. Brownfield Stage 3+ может использовать этот путь или project-native equivalent, но artifact должен ссылаться на exact Task/contract и diff/SHA. На ранних adoption stages независимый review может быть явно deferred; такой pilot нельзя представлять как full-profile compliant/approved.
 

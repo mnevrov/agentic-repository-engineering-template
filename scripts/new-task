@@ -24,15 +24,26 @@ def main() -> None:
 
     template_root = Path(__file__).resolve().parents[1]
     target_root = args.repo.resolve() if args.repo is not None else template_root
+    if not target_root.is_dir():
+        parser.error(f'target repository directory does not exist: {target_root}')
+
     template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
     template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
 
     if args.output_dir:
-        output_dir = target_root / args.output_dir
+        requested = Path(args.output_dir)
+        if requested.is_absolute() or '..' in requested.parts:
+            parser.error('--output-dir must be a repository-relative path without ..')
+        output_dir = (target_root / requested).resolve()
     elif args.contract:
-        output_dir = target_root / '.agentic/tasks'
+        output_dir = (target_root / '.agentic/tasks').resolve()
     else:
-        output_dir = target_root / 'docs/tasks'
+        output_dir = (target_root / 'docs/tasks').resolve()
+
+    try:
+        output_dir.relative_to(target_root)
+    except ValueError:
+        parser.error('output directory escapes the target repository')
     output_dir.mkdir(parents=True, exist_ok=True)
     out = output_dir / f'{task_id}.md'
     if out.exists():

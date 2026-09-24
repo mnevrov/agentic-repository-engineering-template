@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -10,6 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/fixtures/brownfield-project'
+
+_doctor_loader = importlib.machinery.SourceFileLoader('repo_doctor_module', str(ROOT / 'scripts/repo-doctor'))
+_doctor_spec = importlib.util.spec_from_loader(_doctor_loader.name, _doctor_loader)
+repo_doctor_module = importlib.util.module_from_spec(_doctor_spec)
+_doctor_loader.exec_module(repo_doctor_module)
 
 
 def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -99,6 +106,34 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         proc = run([str(ROOT / 'scripts/new-task'), '--repo', str(repo), 'LOCAL-1', 'Local task'], ROOT)
         self.assertIn('docs/tasks/LOCAL-1.md', proc.stdout)
         self.assertIn('LOCAL-1 — Local task', (repo / 'docs/tasks/LOCAL-1.md').read_text(encoding='utf-8'))
+
+    def test_template_secret_scan_includes_untracked_files_without_values(self):
+        repo = self.make_repo()
+        secret = 'ghp_' + ('A' * 24)
+        (repo / 'local-untracked.txt').write_text(f'token={secret}\n', encoding='utf-8')
+        hits = repo_doctor_module.scan_secret_locations(repo)
+        self.assertIn('local-untracked.txt:1', hits)
+        self.assertTrue(all(secret not in hit for hit in hits))
+
+    def test_new_task_rejects_missing_target_repo(self):
+        parent = Path(tempfile.mkdtemp())
+        missing = parent / 'typo-repository'
+        proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(missing), '--contract',
+            '--source', 'JIRA-1', 'JIRA-1', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertFalse(missing.exists())
+
+    def test_new_task_rejects_output_path_escape(self):
+        repo = self.make_repo()
+        outside = repo.parent / 'escaped'
+        proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--output-dir', '../escaped', '--source', 'JIRA-2', 'JIRA-2', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertFalse(outside.exists())
 
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()

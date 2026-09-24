@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -23,6 +24,8 @@ SECRET_PATTERNS = [
 ]
 ALLOWED_STAGES = {'minimum-context', 'repeatable-workflow', 'independent-verification', 'risk-aware'}
 ALLOWED_VERIFICATION = {'configured', 'not_configured', 'not_applicable'}
+SECRET_SCAN_IGNORE_DIRS = {'.git', 'node_modules', 'vendor', '.venv', 'venv', 'build', 'dist', '__pycache__'}
+SECRET_SCAN_BINARY_SUFFIXES = {'.zip', '.png', '.jpg', '.jpeg', '.gif', '.pdf', '.ico', '.woff', '.woff2'}
 
 
 def git_repo(repo: Path) -> bool:
@@ -30,21 +33,23 @@ def git_repo(repo: Path) -> bool:
 
 
 def scan_secret_locations(repo: Path) -> list[str]:
+    """Scan relevant tracked and untracked working-tree files without printing secret values."""
     hits: list[str] = []
-    proc = subprocess.run(['git', 'ls-files'], cwd=repo, text=True, capture_output=True)
-    if proc.returncode != 0:
-        return hits
-    for rel in proc.stdout.splitlines():
-        path = repo / rel
-        if not path.is_file() or path.stat().st_size > 2_000_000 or path.suffix.lower() in {'.zip', '.png', '.jpg', '.jpeg', '.gif', '.pdf'}:
-            continue
-        try:
-            data = path.read_bytes()
-        except OSError:
-            continue
-        for n, line in enumerate(data.splitlines(), 1):
-            if any(pattern.search(line) for pattern in SECRET_PATTERNS):
-                hits.append(f'{rel}:{n}')
+    for root, dirs, files in os.walk(repo):
+        dirs[:] = [d for d in dirs if d not in SECRET_SCAN_IGNORE_DIRS]
+        root_path = Path(root)
+        for name in files:
+            path = root_path / name
+            try:
+                rel = path.relative_to(repo).as_posix()
+                if path.is_symlink() or path.stat().st_size > 2_000_000 or path.suffix.lower() in SECRET_SCAN_BINARY_SUFFIXES:
+                    continue
+                data = path.read_bytes()
+            except (OSError, ValueError):
+                continue
+            for n, line in enumerate(data.splitlines(), 1):
+                if any(pattern.search(line) for pattern in SECRET_PATTERNS):
+                    hits.append(f'{rel}:{n}')
     return hits
 
 
