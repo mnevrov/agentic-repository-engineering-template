@@ -5,7 +5,7 @@
 ## Read-only audit существующего repository
 
 ```bash
-/path/to/template/scripts/repo-audit --repo . --output /tmp/agentic-repository-audit.md
+/path/to/template/scripts/repo-audit --repo . > /tmp/agentic-repository-audit.md
 ```
 
 Audit обнаруживает common repository instructions, build/test signals, CI, architecture/ADR/RFC/backlog paths и candidate verification commands. Он не меняет target repository и не считает heuristic candidate authoritative command.

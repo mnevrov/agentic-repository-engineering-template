@@ -7,8 +7,13 @@ import re
 import subprocess
 from pathlib import Path
 
-PLACEHOLDER_RE = re.compile(
-    r'^(?:todo(?::.*)?|tbd|unknown|not[ _-]?specified|not[ _-]?set|unset|changeme|replace[ _-]?me|n/?a|<.*>)$',
+PLACEHOLDER_HEAD_RE = re.compile(
+    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\\s:]|-(?!\\d))',
+    re.IGNORECASE,
+)
+PLACEHOLDER_PHRASE_RE = re.compile(
+    r'^(?:not\\s+(?:specified|set)|replace\\s+(?:me|this|with(?:\\s+.*)?)|'
+    r'to\\s+be\\s+(?:determined|decided)|n/?a)(?:$|[\\s:])',
     re.IGNORECASE,
 )
 GIT_REPOSITORY_ENV_VARS = {
@@ -41,27 +46,60 @@ def git_toplevel(path: Path) -> Path | None:
 
 
 def is_placeholder(value: object) -> bool:
-    """Reject empty and template-sentinel values where a real reference is required."""
-    return not isinstance(value, str) or not value.strip() or bool(PLACEHOLDER_RE.fullmatch(value.strip()))
+    """Reject empty and natural-language template sentinel values."""
+    if not isinstance(value, str) or not value.strip():
+        return True
+    normalized = ' '.join(value.strip().split())
+    if normalized.startswith('<') and normalized.endswith('>'):
+        return True
+    return bool(PLACEHOLDER_HEAD_RE.match(normalized) or PLACEHOLDER_PHRASE_RE.match(normalized))
 
 
-def validate_relative_output(root: Path, requested: Path, parser: argparse.ArgumentParser) -> Path:
-    """Return a safe repository-local output directory without symlink traversal."""
+class SafePathError(RuntimeError):
+    """Raised when a repository-relative output path cannot be traversed safely."""
+
+
+def open_output_dir_fd(root: Path, requested: Path) -> int:
+    """Open/create an output directory via dir_fd traversal without following symlinks."""
     if requested.is_absolute() or '..' in requested.parts:
-        parser.error('--output-dir must be a repository-relative path without ..')
+        raise SafePathError('--output-dir must be a repository-relative path without ..')
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise SafePathError('secure output creation requires O_NOFOLLOW/O_DIRECTORY support')
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd:
+        raise SafePathError('secure output creation requires dir_fd support')
 
-    current = root
-    for part in requested.parts:
-        current = current / part
-        if current.is_symlink():
-            parser.error(f'output path contains a symlink component: {current}')
-
-    output_dir = (root / requested).resolve(strict=False)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
     try:
-        output_dir.relative_to(root)
-    except ValueError:
-        parser.error('output directory escapes the target repository')
-    return output_dir
+        for part in requested.parts:
+            if part in {'', '.', '..'}:
+                raise SafePathError(f'invalid output path component: {part!r}')
+            try:
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, 0o755, dir_fd=current_fd)
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise SafePathError(f'unsafe/non-directory output path component: {part}') from exc
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def exclusive_write_at(directory_fd: int, filename: str, content: str) -> None:
+    """Create one new regular file relative to an already-open safe directory."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(filename, flags, 0o644, dir_fd=directory_fd)
+    except FileExistsError as exc:
+        raise SafePathError(f'already exists: {filename}') from exc
+    except OSError as exc:
+        raise SafePathError(f'cannot safely create: {filename}') from exc
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(content)
 
 
 def main() -> None:
@@ -105,23 +143,20 @@ def main() -> None:
     else:
         requested = Path('docs/tasks')
 
-    output_dir = validate_relative_output(target_root, requested, parser)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    out = output_dir / f'{task_id}.md'
-    if out.exists() or out.is_symlink():
-        raise SystemExit(f'already exists: {out}')
-
     content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
     content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+    filename = f'{task_id}.md'
 
     try:
-        with out.open('x', encoding='utf-8') as handle:
-            handle.write(content)
-    except FileExistsError:
-        raise SystemExit(f'already exists: {out}')
+        output_fd = open_output_dir_fd(target_root, requested)
+        try:
+            exclusive_write_at(output_fd, filename, content)
+        finally:
+            os.close(output_fd)
+    except SafePathError as exc:
+        parser.error(str(exc))
 
-    print(out.relative_to(target_root))
+    print((requested / filename).as_posix())
 
 
 if __name__ == '__main__':

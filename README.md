@@ -17,7 +17,7 @@
 ```bash
 git clone --depth 1 https://github.com/mnevrov/agentic-repository-engineering-template.git /tmp/agentic-repository-template
 cd existing-project
-python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . --output /tmp/agentic-repository-audit.md
+python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . > /tmp/agentic-repository-audit.md
 ```
 
 Затем используйте agent/subagent orchestration: discovery → verification → context/truth → gap analysis → при необходимости `grill-me` → Human Gate → минимальный adoption layer → одна существующая bounded Task. Existing build/test/CI, tracker, layout и engineering docs переиспользуются.

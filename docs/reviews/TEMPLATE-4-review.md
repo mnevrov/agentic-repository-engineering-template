@@ -57,3 +57,21 @@ All eight findings were accepted as valid and addressed in the subsequent review
 ## Author self-review after round-2 fixes
 
 Focused self-review found one remaining edge inside finding #5 before external re-review: malformed scalar types in instruction/task fields were fail-closed but could be classified as incomplete instead of invalid, and optional lower-stage capability sections were not fully schema-checked. The doctor now treats those malformed values as `CONFLICT` and validates every present known capability section even when the current stage does not require it.
+
+## Независимый clean-context review — round 3
+
+Exact reviewed HEAD: `f95abce0f008c9d14f6b6f8f978ecc8689697832`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/3/2/0`.
+
+Accepted findings:
+
+1. Stage 2–4 capability references were structurally configured but not evidence-bearing;
+2. natural-language placeholder variants such as `TODO later` could bypass fail-closed guards;
+3. the adoption config itself could be an external symlink and local task references were not containment-validated;
+4. audit/new-task retained ancestor TOCTOU surface (P2);
+5. workshop documentation still described merge-ref verification after CI moved to exact PR HEAD (P2).
+
+The subsequent fix changes capability references to typed evidence references, broadens sentinel detection without rejecting IDs like `TODO-123`, rejects external config symlinks and local task-source escapes, makes repo-audit stdout-only, uses descriptor-relative no-follow creation in new-task, and aligns the workshop with exact-HEAD CI.

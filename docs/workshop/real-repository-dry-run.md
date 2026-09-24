@@ -994,7 +994,7 @@ tail -n 10 .ai/telemetry/cycles.jsonl
 - project `make check`;
 - project `make test`.
 
-Если demo repository использует PR flow — полезно хотя бы DEMO-2 или DEMO-3 провести через настоящий PR, чтобы убедиться, что проверки работают именно на merge ref, а не только локально.
+Если demo repository использует PR flow — полезно хотя бы DEMO-2 или DEMO-3 провести через настоящий PR, чтобы подтвердить проверки на exact PR HEAD. Merge-result compatibility, если она нужна проекту, проверяется отдельным дополнительным signal, а не подменяет exact-HEAD evidence.
 
 ---
 

@@ -13,7 +13,7 @@
 ```bash
 git clone --depth 1 https://github.com/mnevrov/agentic-repository-engineering-template.git /tmp/agentic-repository-template
 cd existing-project
-python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . --output /tmp/agentic-repository-audit.md
+python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . > /tmp/agentic-repository-audit.md
 ```
 
 `repo-audit` только читает repository. Он обнаруживает common build files, test-related paths, CI, instructions, docs, ADR/RFC/design paths, backlog-like files и candidate verification commands. Candidate не становится authoritative автоматически. Security-sensitive detection path-based и не печатает возможные secret values.
@@ -66,7 +66,7 @@ Exit: `0` consistent; `2` context ещё не настроен/неполон, r
 
 ## Existing backlog
 
-Jira, GitHub/GitLab Issues, Markdown backlog и внутренние IDs остаются task-management source of truth. Для agentic cycle нужен лишь local execution contract:
+Jira, GitHub/GitLab Issues, Markdown backlog и внутренние IDs остаются task-management source of truth. Для local task-source kinds (`markdown-backlog`, `local-file`) reference трактуется как repository-local path с optional `#fragment` и проходит containment validation. Для external kinds reference должен быть конкретным URL/ID. Для agentic cycle нужен лишь local execution contract:
 
 ```bash
 /tmp/agentic-repository-template/scripts/new-task \
@@ -103,7 +103,25 @@ existing task → local contract → mapped repository context
 
 **Stage 4 — Risk-aware enforcement:** A/B/C либо existing risk model, stronger high-risk gates, adversarial review и technical enforcement.
 
-`repo-doctor --adoption` проверяет stage fail-closed. Для Stage 2 mapping должен явно подтвердить repeatable-workflow capabilities (Task contract, AC, evidence, DoD); Stage 3 дополнительно — review mechanism, exact SHA/diff evidence и CI/PR linkage; Stage 4 — risk model, high-risk gates, adversarial review и technical enforcement. Каждая configured capability содержит непустой `reference` на project-native mechanism/evidence. Простая смена значения `stage` без этих capabilities даёт `NOT_CONFIGURED`, а не false green.
+`repo-doctor --adoption` проверяет stage fail-closed. Для Stage 2 mapping должен явно подтвердить repeatable-workflow capabilities (Task contract, AC, evidence, DoD); Stage 3 дополнительно — review mechanism, exact SHA/diff evidence и CI/PR linkage; Stage 4 — risk model, high-risk gates, adversarial review и technical enforcement. Простая смена значения `stage` без этих capabilities даёт `NOT_CONFIGURED`, а не false green.
+
+Configured capability использует **typed evidence reference**, а не описательную строку:
+
+```json
+{
+  "status": "configured",
+  "reference": {"type": "path", "value": "GOVERNANCE.md#independent-review"}
+}
+```
+
+Допустимые reference types:
+
+- `path` — существующий repository-local path, допускается `#fragment`; absolute/`..`/symlink escape запрещены;
+- `url` — абсолютный `http(s)` URL без embedded credentials;
+- `external_id` — компактный внешний identifier, например `JIRA-1842` или `POLICY:RISK-1`;
+- `command` — exact command, уже присутствующий среди configured verification commands.
+
+Значения вроде `"yes"`, `"project risk policy"` или `"TODO later"` не являются evidence.
 
 Telemetry обязательна в greenfield/full profile, но не prerequisite Stage 1 brownfield adoption.
 

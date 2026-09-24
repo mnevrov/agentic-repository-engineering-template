@@ -285,7 +285,6 @@ def main() -> None:
     p = argparse.ArgumentParser(description='Read-only discovery for adopting repository engineering in an existing project.')
     p.add_argument('--repo', type=Path, default=Path('.'), help='Existing repository to inspect (default: current directory).')
     p.add_argument('--format', choices=('markdown', 'json'), default='markdown')
-    p.add_argument('--output', default='-', help='Output path, or - for stdout. The target repository is never modified implicitly.')
     args = p.parse_args()
 
     repo = args.repo.resolve()
@@ -294,32 +293,8 @@ def main() -> None:
 
     report = collect(repo)
     text = json.dumps(report, ensure_ascii=False, indent=2) + '\n' if args.format == 'json' else markdown(report)
-    if args.output == '-':
-        print(text, end='')
-    else:
-        requested = Path(args.output)
-        if not requested.is_absolute():
-            requested = (Path.cwd() / requested)
-        if requested.exists() or requested.is_symlink():
-            raise SystemExit(f'refusing to overwrite existing audit output: {requested}')
+    print(text, end='')
 
-        output_path = requested.resolve(strict=False)
-        repo_root = repo.resolve()
-        try:
-            output_path.relative_to(repo_root)
-        except ValueError:
-            pass
-        else:
-            raise SystemExit('audit output must be outside the target repository')
-
-        if not output_path.parent.is_dir():
-            raise SystemExit(f'audit output parent directory does not exist: {output_path.parent}')
-
-        try:
-            with output_path.open('x', encoding='utf-8') as handle:
-                handle.write(text)
-        except FileExistsError:
-            raise SystemExit(f'refusing to overwrite existing audit output: {output_path}')
 
 
 if __name__ == '__main__':

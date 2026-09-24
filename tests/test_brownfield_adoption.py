@@ -24,6 +24,11 @@ _doctor_spec = importlib.util.spec_from_loader(_doctor_loader.name, _doctor_load
 repo_doctor_module = importlib.util.module_from_spec(_doctor_spec)
 _doctor_loader.exec_module(repo_doctor_module)
 
+_new_task_loader = importlib.machinery.SourceFileLoader('new_task_module', str(ROOT / 'scripts/new-task'))
+_new_task_spec = importlib.util.spec_from_loader(_new_task_loader.name, _new_task_loader)
+new_task_module = importlib.util.module_from_spec(_new_task_spec)
+_new_task_loader.exec_module(new_task_module)
+
 
 def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
     """Run test commands without inheriting Git repository-location overrides."""
@@ -314,7 +319,13 @@ class BrownfieldAdoptionTests(unittest.TestCase):
 
     def test_adoption_doctor_accepts_fully_evidenced_risk_aware_stage(self):
         repo = self.make_repo()
-        configured = lambda reference: {'status': 'configured', 'reference': reference}
+        contract = repo / '.agentic/tasks/LEGACY-17.md'
+        contract.parent.mkdir(parents=True)
+        contract.write_text('# LEGACY-17\n## Acceptance Criteria\n## Evidence\n', encoding='utf-8')
+        configured = lambda ref_type, value: {
+            'status': 'configured',
+            'reference': {'type': ref_type, 'value': value},
+        }
         config = {
             'schema_version': 1,
             'mode': 'adoption',
@@ -334,21 +345,21 @@ class BrownfieldAdoptionTests(unittest.TestCase):
             },
             'capabilities': {
                 'repeatable_workflow': {
-                    'task_contract': configured('.agentic/tasks'),
-                    'acceptance_criteria': configured('execution contract AC section'),
-                    'evidence': configured('execution contract evidence section'),
-                    'definition_of_done': configured('CONTRIBUTING.md'),
+                    'task_contract': configured('path', '.agentic/tasks/LEGACY-17.md'),
+                    'acceptance_criteria': configured('path', '.agentic/tasks/LEGACY-17.md#acceptance-criteria'),
+                    'evidence': configured('path', '.agentic/tasks/LEGACY-17.md#evidence'),
+                    'definition_of_done': configured('path', 'GOVERNANCE.md#definition-of-done'),
                 },
                 'independent_verification': {
-                    'review_mechanism': configured('GitHub pull-request review'),
-                    'exact_sha_diff_evidence': configured('review requires exact SHA/diff'),
-                    'ci_pr_linkage': configured('.github/workflows/build.yml'),
+                    'review_mechanism': configured('path', 'GOVERNANCE.md#independent-review'),
+                    'exact_sha_diff_evidence': configured('path', 'GOVERNANCE.md#independent-review'),
+                    'ci_pr_linkage': configured('path', '.github/workflows/build.yml'),
                 },
                 'risk_aware': {
-                    'risk_model': configured('project risk policy'),
-                    'high_risk_gates': configured('project risk policy'),
-                    'adversarial_review': configured('project risk policy'),
-                    'technical_enforcement': configured('.github/workflows/build.yml'),
+                    'risk_model': configured('path', 'GOVERNANCE.md#risk-model'),
+                    'high_risk_gates': configured('path', 'GOVERNANCE.md#risk-model'),
+                    'adversarial_review': configured('path', 'GOVERNANCE.md#adversarial-review'),
+                    'technical_enforcement': configured('path', '.github/workflows/build.yml'),
                 },
             },
             'unresolved_conflicts': [],
@@ -399,12 +410,12 @@ class BrownfieldAdoptionTests(unittest.TestCase):
             'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
             'sources': {
                 'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': 'CLAUDE.md'},
-                'tasks': {'kind': 'external', 'reference': 'not specified', 'local_contract_dir': '.agentic/tasks'},
+                'tasks': {'kind': 'external', 'reference': 'not specified yet', 'local_contract_dir': '.agentic/tasks'},
             },
             'verification': {
-                'check': {'status': 'configured', 'command': 'TODO'},
+                'check': {'status': 'configured', 'command': 'TODO later'},
                 'test': {'status': 'configured', 'command': './scripts/test.sh'},
-                'integration': {'status': 'not_applicable', 'reason': 'TODO'},
+                'integration': {'status': 'not_applicable', 'reason': 'unknown yet'},
             },
             'unresolved_conflicts': [],
             'open_questions': [],
@@ -502,6 +513,138 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
         self.assertEqual(proc.returncode, 1)
         self.assertIn('capabilities.repeatable_workflow.task_contract must be an object', proc.stdout)
+
+
+    def test_placeholder_policy_rejects_natural_variants_but_allows_tracker_ids(self):
+        for value in ('TODO later', 'TBD later', 'unknown yet', 'not specified yet', 'not set yet', 'replace this'):
+            self.assertTrue(repo_doctor_module.is_placeholder(value), value)
+            self.assertTrue(new_task_module.is_placeholder(value), value)
+        self.assertFalse(repo_doctor_module.is_placeholder('TODO-123'))
+        self.assertFalse(new_task_module.is_placeholder('TODO-123'))
+
+        repo = self.make_repo()
+        rejected = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'TODO later', 'TASK-1', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+
+        accepted = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'TODO-123', 'TASK-2', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-2.md', accepted.stdout)
+
+    def test_adoption_doctor_rejects_self_asserted_capability_references(self):
+        repo = self.make_repo()
+        contract = repo / '.agentic/tasks/LEGACY-17.md'
+        contract.parent.mkdir(parents=True)
+        contract.write_text('# LEGACY-17\n', encoding='utf-8')
+        bad_ref = {'status': 'configured', 'reference': 'project risk policy'}
+        bad_id = {'status': 'configured', 'reference': {'type': 'external_id', 'value': 'yes'}}
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'repeatable-workflow',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': 'BACKLOG.md', 'local_contract_dir': '.agentic/tasks'},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'capabilities': {
+                'repeatable_workflow': {
+                    'task_contract': bad_ref,
+                    'acceptance_criteria': bad_id,
+                    'evidence': {'status': 'configured', 'reference': {'type': 'command', 'value': 'make deploy'}},
+                    'definition_of_done': {'status': 'configured', 'reference': {'type': 'path', 'value': 'GOVERNANCE.md#definition-of-done'}},
+                }
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('reference must be an object with type/value', proc.stdout)
+        self.assertIn('not an identifiable external ID', proc.stdout)
+        self.assertIn('must match a configured verification command', proc.stdout)
+
+    def test_adoption_config_must_not_be_external_symlink(self):
+        repo = self.make_repo()
+        outside = repo.parent / 'valid-adoption.json'
+        outside.write_text(json.dumps({
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': 'BACKLOG.md', 'local_contract_dir': '.agentic/tasks'},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }), encoding='utf-8')
+        (repo / '.agentic-repository.json').symlink_to(outside)
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('must be a repository-local regular file', proc.stdout)
+
+    def test_local_task_reference_cannot_escape_repository(self):
+        repo = self.make_repo()
+        outside = repo.parent / 'outside-backlog.md'
+        outside.write_text('# outside\n', encoding='utf-8')
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': '../outside-backlog.md#TASK-1', 'local_contract_dir': '.agentic/tasks'},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('must be repository-relative without ..', proc.stdout)
+
+        (repo / 'backlog-link.md').symlink_to(outside)
+        config['sources']['tasks']['reference'] = 'backlog-link.md#TASK-1'
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('escapes repository', proc.stdout)
+
+    def test_new_task_dirfd_creation_does_not_follow_swapped_parent_symlink(self):
+        repo = self.make_repo()
+        output_fd = new_task_module.open_output_dir_fd(repo, Path('.agentic/tasks'))
+        original = repo / '.agentic/tasks'
+        renamed = repo / '.agentic/tasks-original'
+        original.rename(renamed)
+        outside = repo.parent / 'outside-task-dir'
+        outside.mkdir()
+        original.symlink_to(outside, target_is_directory=True)
+        try:
+            new_task_module.exclusive_write_at(output_fd, 'RACE.md', 'safe\n')
+        finally:
+            os.close(output_fd)
+        self.assertEqual((renamed / 'RACE.md').read_text(encoding='utf-8'), 'safe\n')
+        self.assertFalse((outside / 'RACE.md').exists())
+
 
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
