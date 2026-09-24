@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+from typing import Iterable
+
+IGNORE_DIRS = {'.git', '.hg', '.svn', 'node_modules', 'vendor', 'build', 'dist', '.venv', 'venv', '__pycache__'}
+
+INSTRUCTION_EXACT = {
+    'AGENTS.md': 'agent instructions',
+    'CLAUDE.md': 'Claude Code instructions',
+    'CONTRIBUTING.md': 'contributor instructions',
+    '.github/copilot-instructions.md': 'GitHub Copilot instructions',
+    '.cursorrules': 'Cursor instructions',
+}
+BUILD_MARKERS = {
+    'CMakeLists.txt': 'CMake',
+    'Makefile': 'Make',
+    'pyproject.toml': 'Python/pyproject',
+    'setup.py': 'Python/setuptools',
+    'package.json': 'Node.js/package scripts',
+    'Cargo.toml': 'Cargo/Rust',
+    'go.mod': 'Go modules',
+    'pom.xml': 'Maven',
+    'build.gradle': 'Gradle',
+    'build.gradle.kts': 'Gradle Kotlin',
+    'meson.build': 'Meson',
+    'WORKSPACE': 'Bazel',
+    'MODULE.bazel': 'Bazel modules',
+}
+CI_EXACT = {
+    '.gitlab-ci.yml': 'GitLab CI',
+    'Jenkinsfile': 'Jenkins',
+    '.circleci/config.yml': 'CircleCI',
+    'azure-pipelines.yml': 'Azure Pipelines',
+    'bitbucket-pipelines.yml': 'Bitbucket Pipelines',
+}
+TEST_CONFIGS = {
+    'pytest.ini', 'tox.ini', 'noxfile.py', 'jest.config.js', 'jest.config.ts',
+    'vitest.config.js', 'vitest.config.ts', 'phpunit.xml', 'phpunit.xml.dist',
+}
+
+
+def run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(['git', *args], cwd=repo, text=True, capture_output=True)
+
+
+def is_git_repo(repo: Path) -> bool:
+    return run_git(repo, 'rev-parse', '--is-inside-work-tree').returncode == 0
+
+
+def repository_files(repo: Path, git_repo: bool) -> list[str]:
+    if git_repo:
+        proc = run_git(repo, 'ls-files')
+        if proc.returncode == 0:
+            return sorted(line for line in proc.stdout.splitlines() if line)
+    found: list[str] = []
+    for root, dirs, files in os.walk(repo):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+        root_path = Path(root)
+        for name in files:
+            try:
+                found.append((root_path / name).relative_to(repo).as_posix())
+            except ValueError:
+                continue
+    return sorted(found)
+
+
+def existing(files: set[str], exact: Iterable[str]) -> list[str]:
+    return sorted(path for path in exact if path in files)
+
+
+def detect_verification_candidates(repo: Path, files: set[str]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+
+    def add(kind: str, command: str, evidence: str) -> None:
+        item = {'kind': kind, 'command': command, 'evidence': evidence, 'confidence': 'candidate'}
+        if item not in out:
+            out.append(item)
+
+    if 'scripts/check.sh' in files:
+        add('check', './scripts/check.sh', 'scripts/check.sh exists')
+    if 'scripts/test.sh' in files:
+        add('test', './scripts/test.sh', 'scripts/test.sh exists')
+
+    if 'Makefile' in files:
+        try:
+            text = (repo / 'Makefile').read_text(encoding='utf-8', errors='replace')
+            targets = set(re.findall(r'^([A-Za-z0-9_.-]+)\s*:(?![=])', text, flags=re.MULTILINE))
+            for target, kind in [('check', 'check'), ('lint', 'check'), ('test', 'test'), ('test-integration', 'integration')]:
+                if target in targets:
+                    add(kind, f'make {target}', f'Makefile target {target!r} exists')
+        except OSError:
+            pass
+
+    if 'package.json' in files:
+        try:
+            data = json.loads((repo / 'package.json').read_text(encoding='utf-8'))
+            scripts = data.get('scripts', {}) if isinstance(data, dict) else {}
+            if isinstance(scripts, dict):
+                for name, kind in [('lint', 'check'), ('check', 'check'), ('test', 'test'), ('test:integration', 'integration')]:
+                    if isinstance(scripts.get(name), str):
+                        add(kind, f'npm run {name}' if name != 'test' else 'npm test', f'package.json script {name!r} exists')
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    if 'Cargo.toml' in files:
+        add('check', 'cargo check', 'Cargo.toml exists')
+        add('test', 'cargo test', 'Cargo.toml exists')
+    if 'go.mod' in files:
+        add('test', 'go test ./...', 'go.mod exists')
+    if 'pom.xml' in files:
+        add('test', 'mvn test', 'pom.xml exists')
+    if 'gradlew' in files:
+        add('test', './gradlew test', 'gradlew exists')
+
+    return out
+
+
+def collect(repo: Path) -> dict:
+    git_repo = is_git_repo(repo)
+    paths = repository_files(repo, git_repo)
+    files = set(paths)
+
+    instructions = [{'path': p, 'kind': INSTRUCTION_EXACT[p]} for p in existing(files, INSTRUCTION_EXACT)]
+    instructions.extend(
+        {'path': p, 'kind': 'Cursor project rule'}
+        for p in paths if p.startswith('.cursor/rules/') and p.endswith(('.md', '.mdc'))
+    )
+
+    build = [{'path': p, 'kind': BUILD_MARKERS[p]} for p in existing(files, BUILD_MARKERS)]
+
+    ci = [{'path': p, 'kind': CI_EXACT[p]} for p in existing(files, CI_EXACT)]
+    ci.extend({'path': p, 'kind': 'GitHub Actions'} for p in paths if p.startswith('.github/workflows/') and p.endswith(('.yml', '.yaml')))
+
+    test_related = []
+    for p in paths:
+        name = Path(p).name
+        low = p.lower()
+        if name in TEST_CONFIGS or '/tests/' in f'/{low}/' or '/qa/' in f'/{low}/' or name.startswith('test_') or re.search(r'_test\.[^.]+$', name):
+            test_related.append(p)
+
+    docs = [p for p in paths if p.lower().startswith('readme') or p.startswith('docs/')]
+    architecture = [p for p in paths if re.search(r'(^|/)(architecture|design)(/|\.|$)', p, flags=re.IGNORECASE)]
+    decisions = [p for p in paths if re.search(r'(^|/)(adr|adrs|rfc|rfcs|decisions)(/|\.|$)', p, flags=re.IGNORECASE)]
+    backlog = [p for p in paths if re.search(r'(^|/)(todo|roadmap|backlog)(\.|/|$)', p, flags=re.IGNORECASE)]
+    backlog.extend(p for p in paths if p.startswith('.github/ISSUE_TEMPLATE/'))
+    backlog = sorted(set(backlog))
+
+    sensitive = [
+        p for p in paths
+        if re.search(r'(^|/)(auth|security|secrets?|permissions?|billing|payments?|migrations?)(/|\.|$)', p, flags=re.IGNORECASE)
+    ]
+
+    verification = detect_verification_candidates(repo, files)
+
+    gaps = [
+        {
+            'area': 'repository instructions',
+            'status': 'DETECTED' if instructions else 'NOT_DETECTED',
+            'detail': 'Existing instruction source(s) found.' if instructions else 'No common repository instruction file detected.'
+        },
+        {
+            'area': 'verification commands',
+            'status': 'NEEDS_CONFIRMATION' if verification else 'NOT_DETECTED',
+            'detail': 'Candidate commands were detected; confirm authoritative commands from project docs/CI.' if verification else 'No safe command candidate detected automatically.'
+        },
+        {
+            'area': 'CI',
+            'status': 'DETECTED' if ci else 'NOT_DETECTED',
+            'detail': 'Existing CI configuration found.' if ci else 'No common in-repository CI configuration detected; CI may be external.'
+        },
+        {
+            'area': 'architecture/decision sources',
+            'status': 'DETECTED' if (architecture or decisions) else 'NOT_DETECTED',
+            'detail': 'Architecture/design/decision material found.' if (architecture or decisions) else 'No common architecture/ADR/RFC path detected; do not infer that architecture is undocumented.'
+        },
+        {
+            'area': 'task/backlog source',
+            'status': 'NEEDS_CONFIRMATION' if backlog else 'NOT_DETECTED',
+            'detail': 'Local backlog-like files found; external tracker may still be authoritative.' if backlog else 'No local backlog-like file detected; external tracker may be authoritative.'
+        },
+    ]
+
+    return {
+        'schema_version': 1,
+        'repository': {
+            'path': str(repo),
+            'git_repository': git_repo,
+            'tracked_or_scanned_files': len(paths),
+        },
+        'instructions': sorted(instructions, key=lambda x: x['path']),
+        'build_systems': sorted(build, key=lambda x: x['path']),
+        'test_related_paths': sorted(set(test_related)),
+        'ci': sorted(ci, key=lambda x: x['path']),
+        'documentation_paths': sorted(set(docs)),
+        'architecture_paths': sorted(set(architecture)),
+        'decision_paths': sorted(set(decisions)),
+        'backlog_candidates': backlog,
+        'security_sensitive_path_signals': sorted(set(sensitive)),
+        'verification_candidates': verification,
+        'gap_signals': gaps,
+        'notes': [
+            'Detection is evidence, not authority. Candidate commands and sources require confirmation.',
+            'The audit does not modify the target repository.',
+            'The audit does not read or print secret values; security-sensitive detection is path-based only.',
+        ],
+    }
+
+
+def markdown(report: dict) -> str:
+    lines = ['# Existing repository audit', '']
+    repo = report['repository']
+    lines += [
+        f"- Git repository: {'yes' if repo['git_repository'] else 'no'}",
+        f"- Files considered: {repo['tracked_or_scanned_files']}",
+        '',
+    ]
+
+    sections = [
+        ('Repository instructions', 'instructions', lambda x: f"- [DETECTED] `{x['path']}` — {x['kind']}"),
+        ('Build systems', 'build_systems', lambda x: f"- [DETECTED] `{x['path']}` — {x['kind']}"),
+        ('CI', 'ci', lambda x: f"- [DETECTED] `{x['path']}` — {x['kind']}"),
+        ('Verification command candidates', 'verification_candidates', lambda x: f"- [CANDIDATE] `{x['command']}` — {x['evidence']}"),
+    ]
+    for title, key, render in sections:
+        lines += [f'## {title}', '']
+        items = report[key]
+        lines += [render(x) for x in items] if items else ['- [NOT_DETECTED] none found by common-path heuristics']
+        lines.append('')
+
+    for title, key in [
+        ('Test-related paths', 'test_related_paths'),
+        ('Architecture/design paths', 'architecture_paths'),
+        ('ADR/RFC/decision paths', 'decision_paths'),
+        ('Backlog/task candidates', 'backlog_candidates'),
+        ('Security-sensitive path signals', 'security_sensitive_path_signals'),
+    ]:
+        lines += [f'## {title}', '']
+        items = report[key]
+        lines += [f'- [DETECTED] `{x}`' for x in items] if items else ['- [NOT_DETECTED] none found by common-path heuristics']
+        lines.append('')
+
+    lines += ['## Gap signals', '']
+    for gap in report['gap_signals']:
+        lines.append(f"- [{gap['status']}] **{gap['area']}** — {gap['detail']}")
+    lines += ['', '## Safety notes', '']
+    lines += [f'- {note}' for note in report['notes']]
+    return '\n'.join(lines) + '\n'
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description='Read-only discovery for adopting repository engineering in an existing project.')
+    p.add_argument('--repo', type=Path, default=Path('.'), help='Existing repository to inspect (default: current directory).')
+    p.add_argument('--format', choices=('markdown', 'json'), default='markdown')
+    p.add_argument('--output', default='-', help='Output path, or - for stdout. The target repository is never modified implicitly.')
+    args = p.parse_args()
+
+    repo = args.repo.resolve()
+    if not repo.is_dir():
+        raise SystemExit(f'not a directory: {repo}')
+
+    report = collect(repo)
+    text = json.dumps(report, ensure_ascii=False, indent=2) + '\n' if args.format == 'json' else markdown(report)
+    if args.output == '-':
+        print(text, end='')
+    else:
+        Path(args.output).write_text(text, encoding='utf-8')
+
+
+if __name__ == '__main__':
+    main()

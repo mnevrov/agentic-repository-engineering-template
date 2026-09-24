@@ -1,50 +1,255 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+from __future__ import annotations
 
-required=(
-  AGENTS.md
-  CLAUDE.md
-  docs/INDEX.md
-  docs/architecture/overview.md
-  docs/architecture/invariants.md
-  docs/backlog/ROADMAP.md
-  docs/backlog/TODO.md
-  docs/process/development-cycle.md
-  docs/process/code-review.md
-  docs/process/definition-of-done.md
-  docs/process/evidence-ladder.md
-  docs/process/traceability.md
-  docs/process/telemetry.md
-  .ai/templates/TASK.md
-  .ai/templates/REVIEW.md
-  .ai/schemas/cycle.schema.json
-  scripts/check-telemetry-append-only.py
-  scripts/check-telemetry-required.py
-)
+import argparse
+import json
+import re
+import subprocess
+from pathlib import Path
 
-failed=0
-for f in "${required[@]}"; do
-  if [[ -f "$f" ]]; then
-    printf '[ OK ] %s\n' "$f"
-  else
-    printf '[MISS] %s\n' "$f"
-    failed=1
-  fi
-done
+TEMPLATE_REQUIRED = [
+    'AGENTS.md', 'CLAUDE.md', 'docs/INDEX.md', 'docs/architecture/overview.md',
+    'docs/architecture/invariants.md', 'docs/backlog/ROADMAP.md', 'docs/backlog/TODO.md',
+    'docs/process/development-cycle.md', 'docs/process/code-review.md',
+    'docs/process/definition-of-done.md', 'docs/process/evidence-ladder.md',
+    'docs/process/traceability.md', 'docs/process/telemetry.md', '.ai/templates/TASK.md',
+    '.ai/templates/REVIEW.md', '.ai/schemas/cycle.schema.json',
+    'scripts/check-telemetry-append-only.py', 'scripts/check-telemetry-required.py',
+]
+SECRET_PATTERNS = [
+    re.compile(rb'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'),
+    re.compile(rb'AKIA[0-9A-Z]{16}'),
+    re.compile(rb'ghp_[A-Za-z0-9]{20,}'),
+]
+ALLOWED_STAGES = {'minimum-context', 'repeatable-workflow', 'independent-verification', 'risk-aware'}
+ALLOWED_VERIFICATION = {'configured', 'not_configured', 'not_applicable'}
 
-if grep -RInE '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})' \
-  --exclude-dir=.git --exclude='*.zip' . >/tmp/repo-doctor-secrets.$$ 2>/dev/null; then
-  echo '[WARN] possible secret-like material found:'
-  cat /tmp/repo-doctor-secrets.$$
-  failed=1
-else
-  echo '[ OK ] no obvious secret patterns found'
-fi
-rm -f /tmp/repo-doctor-secrets.$$
 
-if [[ $failed -eq 0 ]]; then
-  echo 'Repository engineering skeleton looks consistent.'
-else
-  echo 'Repository doctor found issues.' >&2
-  exit 1
-fi
+def git_repo(repo: Path) -> bool:
+    return subprocess.run(['git', 'rev-parse', '--is-inside-work-tree'], cwd=repo, text=True, capture_output=True).returncode == 0
+
+
+def scan_secret_locations(repo: Path) -> list[str]:
+    hits: list[str] = []
+    proc = subprocess.run(['git', 'ls-files'], cwd=repo, text=True, capture_output=True)
+    if proc.returncode != 0:
+        return hits
+    for rel in proc.stdout.splitlines():
+        path = repo / rel
+        if not path.is_file() or path.stat().st_size > 2_000_000 or path.suffix.lower() in {'.zip', '.png', '.jpg', '.jpeg', '.gif', '.pdf'}:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        for n, line in enumerate(data.splitlines(), 1):
+            if any(pattern.search(line) for pattern in SECRET_PATTERNS):
+                hits.append(f'{rel}:{n}')
+    return hits
+
+
+def template_mode(repo: Path) -> int:
+    failed = False
+    for rel in TEMPLATE_REQUIRED:
+        if (repo / rel).is_file():
+            print(f'[ OK ] {rel}')
+        else:
+            print(f'[MISS] {rel}')
+            failed = True
+
+    if git_repo(repo):
+        hits = scan_secret_locations(repo)
+        if hits:
+            print('[WARN] possible secret-like material found at:')
+            for hit in hits:
+                print(f'  {hit}')
+            failed = True
+        else:
+            print('[ OK ] no obvious secret patterns found')
+    else:
+        print('[WARN] Git repository not detected; secret scan skipped')
+        failed = True
+
+    if failed:
+        print('Repository doctor found issues.')
+        return 1
+    print('Repository engineering skeleton looks consistent.')
+    return 0
+
+
+def iter_source_paths(data: dict) -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    sources = data.get('sources', {})
+    if not isinstance(sources, dict):
+        return found
+    instructions = sources.get('instructions', {})
+    if isinstance(instructions, dict):
+        primary = instructions.get('primary')
+        if isinstance(primary, str) and primary:
+            found.append(('instructions.primary', primary))
+        also = instructions.get('also_read', [])
+        if isinstance(also, list):
+            found.extend(('instructions.also_read', x) for x in also if isinstance(x, str) and x)
+    for key in ('architecture', 'decisions', 'ci'):
+        section = sources.get(key, {})
+        if isinstance(section, dict):
+            paths = section.get('paths', [])
+            if isinstance(paths, list):
+                found.extend((f'{key}.paths', x) for x in paths if isinstance(x, str) and x)
+    return found
+
+
+def adoption_mode(repo: Path) -> int:
+    invalid = False
+    incomplete = False
+
+    if not git_repo(repo):
+        print('[MISS] Git repository')
+        print('Adoption configuration is invalid until the target is a Git repository.')
+        return 1
+    print('[ OK ] Git repository')
+
+    config_path = repo / '.agentic-repository.json'
+    if not config_path.is_file():
+        print('[NOT_CONFIGURED] .agentic-repository.json')
+        print('Brownfield repository is not broken; adoption context has not been configured yet.')
+        return 2
+
+    try:
+        data = json.loads(config_path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f'[CONFLICT] invalid .agentic-repository.json: {exc}')
+        return 1
+
+    if data.get('schema_version') != 1:
+        print('[CONFLICT] schema_version must be 1')
+        invalid = True
+    else:
+        print('[ OK ] schema_version=1')
+    if data.get('mode') != 'adoption':
+        print('[CONFLICT] mode must be "adoption"')
+        invalid = True
+    else:
+        print('[ OK ] mode=adoption')
+
+    stage = data.get('stage')
+    if stage not in ALLOWED_STAGES:
+        print(f'[CONFLICT] stage must be one of: {", ".join(sorted(ALLOWED_STAGES))}')
+        invalid = True
+    else:
+        print(f'[ OK ] stage={stage}')
+
+    precedence = data.get('source_of_truth_precedence')
+    if not isinstance(precedence, list) or not precedence or any(not isinstance(x, str) or not x for x in precedence) or len(set(precedence)) != len(precedence):
+        print('[CONFLICT] source_of_truth_precedence must be a non-empty list of unique strings')
+        invalid = True
+    else:
+        print('[ OK ] source-of-truth precedence is explicit')
+
+    source_paths = iter_source_paths(data)
+    if not source_paths:
+        print('[NOT_CONFIGURED] no repository source paths mapped')
+        incomplete = True
+    for label, rel in source_paths:
+        if (repo / rel).exists():
+            print(f'[EXISTING_EQUIVALENT] {label}: {rel}')
+        else:
+            print(f'[CONFLICT] mapped source does not exist: {label}: {rel}')
+            invalid = True
+
+    tasks = data.get('sources', {}).get('tasks', {}) if isinstance(data.get('sources'), dict) else {}
+    if not isinstance(tasks, dict) or not isinstance(tasks.get('kind'), str) or not tasks.get('kind'):
+        print('[NOT_CONFIGURED] sources.tasks.kind')
+        incomplete = True
+    else:
+        print(f"[ OK ] task source kind={tasks['kind']}")
+    contract_dir = tasks.get('local_contract_dir') if isinstance(tasks, dict) else None
+    if isinstance(contract_dir, str) and contract_dir:
+        if (repo / contract_dir).exists():
+            print(f'[ OK ] local contract directory: {contract_dir}')
+        else:
+            print(f'[OPTIONAL] local contract directory not created yet: {contract_dir}')
+    else:
+        print('[NOT_CONFIGURED] sources.tasks.local_contract_dir')
+        incomplete = True
+
+    verification = data.get('verification')
+    if not isinstance(verification, dict) or not verification:
+        print('[NOT_CONFIGURED] verification mapping')
+        incomplete = True
+    else:
+        for name in ('check', 'test', 'integration'):
+            gate = verification.get(name)
+            if gate is None:
+                print(f'[OPTIONAL] verification.{name} not mapped')
+                continue
+            if not isinstance(gate, dict) or gate.get('status') not in ALLOWED_VERIFICATION:
+                print(f'[CONFLICT] verification.{name}.status invalid')
+                invalid = True
+                continue
+            status = gate['status']
+            if status == 'configured':
+                if not isinstance(gate.get('command'), str) or not gate['command'].strip():
+                    print(f'[CONFLICT] verification.{name} configured without command')
+                    invalid = True
+                else:
+                    print(f"[EXISTING_EQUIVALENT] verification.{name}: {gate['command']}")
+            elif status == 'not_applicable':
+                if not isinstance(gate.get('reason'), str) or not gate['reason'].strip():
+                    print(f'[CONFLICT] verification.{name} not_applicable without reason')
+                    invalid = True
+                else:
+                    print(f'[OPTIONAL] verification.{name}: not applicable')
+            else:
+                print(f'[NOT_CONFIGURED] verification.{name}')
+                incomplete = True
+
+    unresolved = data.get('unresolved_conflicts', [])
+    if not isinstance(unresolved, list):
+        print('[CONFLICT] unresolved_conflicts must be a list')
+        invalid = True
+    elif unresolved:
+        for item in unresolved:
+            print(f'[CONFLICT] unresolved: {item}')
+        invalid = True
+    else:
+        print('[ OK ] no declared unresolved source conflicts')
+
+    questions = data.get('open_questions', [])
+    if not isinstance(questions, list):
+        print('[CONFLICT] open_questions must be a list')
+        invalid = True
+    elif questions:
+        for item in questions:
+            print(f'[NOT_CONFIGURED] open question: {item}')
+        incomplete = True
+    else:
+        print('[ OK ] no blocking open questions')
+
+    print('[OPTIONAL] template telemetry is not required by early brownfield adoption unless explicitly enabled')
+
+    if invalid:
+        print('Adoption doctor found conflicts or invalid configuration.')
+        return 1
+    if incomplete:
+        print('Adoption context is incomplete but the existing repository is not considered broken.')
+        return 2
+    print('Brownfield adoption context looks consistent.')
+    return 0
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description='Validate either the full template skeleton or staged brownfield adoption context.')
+    group = p.add_mutually_exclusive_group()
+    group.add_argument('--template', action='store_true', help='Strict full-template validation (default).')
+    group.add_argument('--adoption', action='store_true', help='Validate .agentic-repository.json without requiring template layout.')
+    p.add_argument('--repo', type=Path, default=Path('.'), help='Repository to inspect (default: current directory).')
+    args = p.parse_args()
+    repo = args.repo.resolve()
+    if not repo.is_dir():
+        raise SystemExit(f'not a directory: {repo}')
+    raise SystemExit(adoption_mode(repo) if args.adoption else template_mode(repo))
+
+
+if __name__ == '__main__':
+    main()

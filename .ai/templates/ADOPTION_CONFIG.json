@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "mode": "adoption",
+  "stage": "minimum-context",
+  "source_of_truth_precedence": [
+    "security_and_project_policy",
+    "repository_instructions",
+    "architecture_and_decisions",
+    "current_task_contract",
+    "agent_suggestions",
+    "chat_history"
+  ],
+  "sources": {
+    "instructions": {
+      "primary": "CONTRIBUTING.md",
+      "also_read": []
+    },
+    "architecture": {
+      "status": "partial",
+      "paths": []
+    },
+    "decisions": {
+      "kind": "existing_or_none",
+      "paths": []
+    },
+    "tasks": {
+      "kind": "external",
+      "reference": "TODO: name the existing tracker/backlog",
+      "local_contract_dir": ".agentic/tasks"
+    },
+    "ci": {
+      "status": "existing_or_external",
+      "paths": []
+    }
+  },
+  "verification": {
+    "check": {
+      "status": "not_configured"
+    },
+    "test": {
+      "status": "not_configured"
+    },
+    "integration": {
+      "status": "not_applicable",
+      "reason": "TODO: confirm or replace with the project-specific integration gate"
+    }
+  },
+  "unresolved_conflicts": [],
+  "open_questions": []
+}
