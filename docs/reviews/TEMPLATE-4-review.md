@@ -53,3 +53,7 @@ Reviewer reported `P0/P1/P2/P3 = 0/8/0/0`. Blocking areas:
 8. PR CI metadata referenced the HEAD SHA while checkout actually tested GitHub's generated merge commit.
 
 All eight findings were accepted as valid and addressed in the subsequent review-fix commit with targeted regression coverage. A new clean-context review is required on the new exact HEAD.
+
+## Author self-review after round-2 fixes
+
+Focused self-review found one remaining edge inside finding #5 before external re-review: malformed scalar types in instruction/task fields were fail-closed but could be classified as incomplete instead of invalid, and optional lower-stage capability sections were not fully schema-checked. The doctor now treats those malformed values as `CONFLICT` and validates every present known capability section even when the current stage does not require it.

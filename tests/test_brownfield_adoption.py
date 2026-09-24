@@ -449,6 +449,60 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertFalse(outside.exists())
 
+    def test_adoption_doctor_treats_wrong_scalar_types_as_invalid(self):
+        repo = self.make_repo()
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 123, 'also_read': []},
+                'tasks': {'kind': ['external'], 'reference': 42, 'local_contract_dir': 7},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('sources.instructions.primary must be a string', proc.stdout)
+        self.assertIn('sources.tasks.kind must be a string', proc.stdout)
+        self.assertIn('sources.tasks.reference must be a string', proc.stdout)
+        self.assertIn('sources.tasks.local_contract_dir must be a string', proc.stdout)
+
+    def test_adoption_doctor_validates_present_lower_stage_capability_schema(self):
+        repo = self.make_repo()
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': 'BACKLOG.md', 'local_contract_dir': '.agentic/tasks'},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'capabilities': {
+                'repeatable_workflow': {
+                    'task_contract': 'configured'
+                }
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('capabilities.repeatable_workflow.task_contract must be an object', proc.stdout)
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

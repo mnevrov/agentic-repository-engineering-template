@@ -231,9 +231,12 @@ def validate_source_paths(repo: Path, data: dict) -> tuple[bool, bool]:
         invalid = True
     else:
         primary = instructions.get('primary')
-        if is_placeholder(primary):
+        if primary is None or (isinstance(primary, str) and is_placeholder(primary)):
             print('[NOT_CONFIGURED] sources.instructions.primary')
             incomplete = True
+        elif not isinstance(primary, str):
+            print('[CONFLICT] sources.instructions.primary must be a string')
+            invalid = True
         else:
             ok, reason, _ = validate_local_path(repo, primary, 'sources.instructions.primary', True)
             if not ok:
@@ -266,13 +269,16 @@ def validate_source_paths(repo: Path, data: dict) -> tuple[bool, bool]:
 
         if key == 'decisions':
             marker = section.get('kind')
-            if marker is not None and is_placeholder(marker):
-                print('[CONFLICT] sources.decisions.kind is a placeholder')
-                invalid = True
+            marker_label = 'sources.decisions.kind'
         else:
             marker = section.get('status')
-            if marker is not None and is_placeholder(marker):
-                print(f'[CONFLICT] sources.{key}.status is a placeholder')
+            marker_label = f'sources.{key}.status'
+        if marker is not None:
+            if not isinstance(marker, str):
+                print(f'[CONFLICT] {marker_label} must be a string')
+                invalid = True
+            elif is_placeholder(marker):
+                print(f'[CONFLICT] {marker_label} is a placeholder')
                 invalid = True
 
         ok_list, section_paths = validate_string_list(section.get('paths', []), f'sources.{key}.paths')
@@ -304,23 +310,32 @@ def validate_tasks(repo: Path, data: dict) -> tuple[bool, bool]:
         return True, False
 
     kind = tasks.get('kind')
-    if is_placeholder(kind):
+    if kind is None or (isinstance(kind, str) and is_placeholder(kind)):
         print('[NOT_CONFIGURED] sources.tasks.kind')
         incomplete = True
+    elif not isinstance(kind, str):
+        print('[CONFLICT] sources.tasks.kind must be a string')
+        invalid = True
     else:
         print(f'[ OK ] task source kind={kind}')
 
     reference = tasks.get('reference')
-    if is_placeholder(reference):
+    if reference is None or (isinstance(reference, str) and is_placeholder(reference)):
         print('[NOT_CONFIGURED] sources.tasks.reference')
         incomplete = True
+    elif not isinstance(reference, str):
+        print('[CONFLICT] sources.tasks.reference must be a string')
+        invalid = True
     else:
         print(f'[ OK ] task source reference={reference}')
 
     contract_dir = tasks.get('local_contract_dir')
-    if is_placeholder(contract_dir):
+    if contract_dir is None or (isinstance(contract_dir, str) and is_placeholder(contract_dir)):
         print('[NOT_CONFIGURED] sources.tasks.local_contract_dir')
         incomplete = True
+    elif not isinstance(contract_dir, str):
+        print('[CONFLICT] sources.tasks.local_contract_dir must be a string')
+        invalid = True
     else:
         ok, reason, resolved = validate_local_path(repo, contract_dir, 'sources.tasks.local_contract_dir', False)
         if not ok:
@@ -387,34 +402,8 @@ def validate_verification(data: dict) -> tuple[bool, bool]:
     return invalid, incomplete
 
 
-def validate_capability_entry(section: dict, section_name: str, key: str) -> tuple[bool, bool]:
-    """Validate one stage capability as configured and traceable."""
-    entry = section.get(key)
-    if entry is None:
-        print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
-        return False, True
-    if not isinstance(entry, dict):
-        print(f'[CONFLICT] capabilities.{section_name}.{key} must be an object')
-        return True, False
-
-    status = entry.get('status')
-    if status == 'not_configured':
-        print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
-        return False, True
-    if status != 'configured':
-        print(f'[CONFLICT] capabilities.{section_name}.{key}.status must be configured or not_configured')
-        return True, False
-
-    reference = entry.get('reference')
-    if is_placeholder(reference):
-        print(f'[CONFLICT] capabilities.{section_name}.{key} configured without identifiable reference')
-        return True, False
-    print(f'[ OK ] capability {section_name}.{key}: {reference}')
-    return False, False
-
-
 def validate_stage_capabilities(data: dict, stage: str) -> tuple[bool, bool]:
-    """Require progressively stronger capabilities for adoption stages 2-4."""
+    """Strictly validate capability schema and enforce progressively stronger stages."""
     invalid = False
     incomplete = False
     capabilities = data.get('capabilities', {})
@@ -422,40 +411,73 @@ def validate_stage_capabilities(data: dict, stage: str) -> tuple[bool, bool]:
         print('[CONFLICT] capabilities must be an object')
         return True, False
 
-    required_sections: list[str] = []
+    required_sections: set[str] = set()
     level = STAGE_LEVEL[stage]
     if level >= 2:
-        required_sections.append('repeatable_workflow')
+        required_sections.add('repeatable_workflow')
     if level >= 3:
-        required_sections.append('independent_verification')
+        required_sections.add('independent_verification')
     if level >= 4:
-        required_sections.append('risk_aware')
+        required_sections.add('risk_aware')
 
-    for section_name in required_sections:
+    unknown_sections = set(capabilities) - set(CAPABILITY_REQUIREMENTS)
+    for section_name in sorted(unknown_sections):
+        print(f'[CONFLICT] unknown capabilities section: {section_name}')
+        invalid = True
+
+    for section_name, expected_keys in CAPABILITY_REQUIREMENTS.items():
+        required = section_name in required_sections
         section = capabilities.get(section_name)
         if section is None:
-            print(f'[NOT_CONFIGURED] capabilities.{section_name}')
-            incomplete = True
+            if required:
+                print(f'[NOT_CONFIGURED] capabilities.{section_name}')
+                incomplete = True
             continue
         if not isinstance(section, dict):
             print(f'[CONFLICT] capabilities.{section_name} must be an object')
             invalid = True
             continue
-        for key in CAPABILITY_REQUIREMENTS[section_name]:
-            bad, missing = validate_capability_entry(section, section_name, key)
-            invalid |= bad
-            incomplete |= missing
 
-    # Even for lower stages, present known sections must not be malformed.
-    for section_name in CAPABILITY_REQUIREMENTS:
-        if section_name in required_sections or section_name not in capabilities:
-            continue
-        if not isinstance(capabilities[section_name], dict):
-            print(f'[CONFLICT] capabilities.{section_name} must be an object')
+        unknown_keys = set(section) - set(expected_keys)
+        for key in sorted(unknown_keys):
+            print(f'[CONFLICT] unknown capability: capabilities.{section_name}.{key}')
             invalid = True
 
-    return invalid, incomplete
+        for key in expected_keys:
+            entry = section.get(key)
+            if entry is None:
+                if required:
+                    print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
+                    incomplete = True
+                continue
+            if not isinstance(entry, dict):
+                print(f'[CONFLICT] capabilities.{section_name}.{key} must be an object')
+                invalid = True
+                continue
 
+            unknown_entry_keys = set(entry) - {'status', 'reference'}
+            for extra in sorted(unknown_entry_keys):
+                print(f'[CONFLICT] unknown field: capabilities.{section_name}.{key}.{extra}')
+                invalid = True
+
+            status = entry.get('status')
+            if status not in {'configured', 'not_configured'}:
+                print(f'[CONFLICT] capabilities.{section_name}.{key}.status must be configured or not_configured')
+                invalid = True
+                continue
+
+            if status == 'configured':
+                reference = entry.get('reference')
+                if is_placeholder(reference):
+                    print(f'[CONFLICT] capabilities.{section_name}.{key} configured without identifiable reference')
+                    invalid = True
+                else:
+                    print(f'[ OK ] capability {section_name}.{key}: {reference}')
+            elif required:
+                print(f'[NOT_CONFIGURED] capabilities.{section_name}.{key}')
+                incomplete = True
+
+    return invalid, incomplete
 
 def validate_conflicts_and_questions(data: dict) -> tuple[bool, bool]:
     """Validate explicit conflict/question lists without silently accepting malformed values."""
