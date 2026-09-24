@@ -1,5 +1,7 @@
 # Процесс проверки кода
 
+> Full profile требует independent clean-context review. В brownfield adoption этот gate вводится на Stage 3 либо раньше, если существующая project policy уже его требует. До этого pilot должен честно фиксировать deferred independent review и не называться full-profile approved. Если проект уже имеет более строгую risk/review model, сохраняйте её вместо механической замены на A/B/C.
+
 ## Зачем независимая проверка
 
 Агент, который написал изменение, склонен повторять собственные допущения. Поэтому self-review полезен, но не равен независимой проверке. Для завершённой задачи independent review обязателен; отсутствие доступного reviewer означает `partial`, а не `passed`.
@@ -61,7 +63,7 @@
 
 ## Review artifact
 
-Reviewer сохраняет результат в `docs/reviews/<TASK-ID>-review.md` (можно использовать `.ai/templates/REVIEW.md`). Артефакт должен содержать:
+В full profile reviewer сохраняет результат в `docs/reviews/<TASK-ID>-review.md` (можно использовать `.ai/templates/REVIEW.md`). Brownfield Stage 3+ может использовать project-native review artifact/location. В обоих случаях артефакт должен содержать:
 
 - reviewer/model/session identity, если она известна;
 - входной scope и SHA/diff reference;

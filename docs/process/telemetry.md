@@ -1,5 +1,7 @@
 # Телеметрия агентских циклов
 
+> В greenfield/full profile telemetry является обязательной частью процесса и CI. В staged brownfield adoption она сознательно не является prerequisite Stage 1: сначала можно безопасно наложить minimal context и controlled cycle, а telemetry подключить позже или сопоставить с existing project metrics.
+
 ## Зачем
 
 Без телеметрии невозможно уверенно ответить:

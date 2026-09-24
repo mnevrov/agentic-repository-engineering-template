@@ -6,12 +6,9 @@
 
 ## 0. Восстановить контекст
 
-Прочитать:
+**Full profile / greenfield:** прочитать `docs/INDEX.md`, ROADMAP/TODO, релевантную архитектуру/ADR и файл Task.
 
-1. `docs/INDEX.md`
-2. ROADMAP / TODO
-3. релевантную архитектуру и ADR
-4. файл задачи
+**Brownfield adoption:** прочитать `.agentic-repository.json` и только mapped sources of truth: существующие repository instructions, architecture/design/RFC/ADR, внешний task source и local execution contract. Наличие `docs/backlog`, `docs/tasks` или ADR именно в template layout не требуется.
 
 ## 1. Выбрать одну задачу
 
@@ -63,7 +60,7 @@
 
 ## 7. Локальные проверки
 
-Запустить соответствующие команды из `Makefile` и записать реальные результаты. `NOT CONFIGURED` — отдельное состояние и не является PASS.
+Запустить authoritative project commands и записать реальные результаты. В full profile они обычно представлены `make check/test/test-integration`; в brownfield это могут быть existing scripts/build-system commands, зафиксированные в adoption mapping. `NOT CONFIGURED`/unknown никогда не является PASS.
 
 ## 8. Самопроверка
 
@@ -80,7 +77,7 @@
 
 Обязательна для завершённой задачи. Использовать другой агент/модель или новую сессию без истории реализации. Reviewer получает только задачу/AC, инварианты и ADR, diff и фактические результаты проверок.
 
-Результат сохраняется отдельным артефактом `docs/reviews/<TASK-ID>-review.md`. Если независимый review недоступен, цикл фиксируется как `partial`/`failed`, но не `passed`.
+В full profile результат сохраняется как `docs/reviews/<TASK-ID>-review.md`. Brownfield Stage 3+ может использовать этот путь или project-native equivalent, но artifact должен ссылаться на exact Task/contract и diff/SHA. На ранних adoption stages независимый review может быть явно deferred; такой pilot нельзя представлять как full-profile compliant/approved.
 
 ## 10. Доказательства
 
@@ -92,11 +89,11 @@
 
 ## 12. Обновить память и трассируемость проекта
 
-Задача, TODO, ROADMAP, ADR, архитектура — всё должно отражать состояние после изменения. Проверить минимальную цепочку `task → evidence → review → commit`; для крупных проектов при необходимости использовать полную цепочку из `traceability.md`.
+Обновить только применимые mapped sources of truth. Не создавайте TODO/ROADMAP/ADR только ради template layout. Проверить минимальную цепочку `task/contract → evidence → review (если включён текущей стадией) → commit/PR`; для крупных проектов при необходимости использовать расширенную цепочку из `traceability.md`.
 
 ## 13. Записать телеметрию цикла
 
-Каждая попытка должна оставить запись в `.ai/telemetry/cycles.jsonl`, включая `failed`, `partial` и `aborted`.
+В full profile каждая попытка должна оставить запись в `.ai/telemetry/cycles.jsonl`, включая `failed`, `partial` и `aborted`. В staged brownfield adoption telemetry включается как отдельный maturity/enforcement capability и не является prerequisite Stage 1, если project mapping явно её не требует.
 
 Использовать `scripts/record-cycle.py`. Минимум вводится вручную: `task_id`, начало, окончание и результат. Скрипт автоматически добавляет доступные Git/duration evidence (`duration_seconds`, `git_head`, состояние worktree, изменённые файлы и размер tracked diff). Остальные метрики передавать только если они реально известны.
 
