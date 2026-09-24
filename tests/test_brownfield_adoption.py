@@ -50,6 +50,14 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertIn('./scripts/test.sh', commands)
         self.assertIn('BACKLOG.md', report['backlog_candidates'])
 
+    def test_audit_includes_nonignored_untracked_repository_rules(self):
+        repo = self.make_repo()
+        (repo / 'AGENTS.md').write_text('# Local agent rules\n', encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-audit'), '--repo', str(repo), '--format', 'json'], ROOT)
+        report = json.loads(proc.stdout)
+        self.assertIn('AGENTS.md', {x['path'] for x in report['instructions']})
+        self.assertIn('?? AGENTS.md', run(['git', 'status', '--porcelain'], repo).stdout)
+
     def test_adoption_doctor_does_not_require_template_layout(self):
         repo = self.make_repo()
         config = {

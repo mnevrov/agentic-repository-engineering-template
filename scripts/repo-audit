@@ -56,9 +56,9 @@ def is_git_repo(repo: Path) -> bool:
 
 def repository_files(repo: Path, git_repo: bool) -> list[str]:
     if git_repo:
-        proc = run_git(repo, 'ls-files')
+        proc = run_git(repo, 'ls-files', '--cached', '--others', '--exclude-standard')
         if proc.returncode == 0:
-            return sorted(line for line in proc.stdout.splitlines() if line)
+            return sorted(set(line for line in proc.stdout.splitlines() if line))
     found: list[str] = []
     for root, dirs, files in os.walk(repo):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
