@@ -646,6 +646,109 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertFalse((outside / 'RACE.md').exists())
 
 
+
+    def test_typed_url_evidence_rejects_malformed_host_and_port(self):
+        repo = self.make_repo()
+        commands = {'./scripts/check.sh'}
+        for value in (
+            'https://exa mple.com',
+            'https://example.com:bad',
+            'https://user:pass@example.com/evidence',
+            'https://localhost/evidence',
+        ):
+            ok, _ = repo_doctor_module.validate_evidence_reference(
+                repo,
+                {'type': 'url', 'value': value},
+                'capabilities.risk_aware.risk_model',
+                commands,
+            )
+            self.assertFalse(ok, value)
+
+        for value in (
+            'https://example.com/evidence',
+            'https://example.com:8443/evidence',
+            'https://127.0.0.1/evidence',
+        ):
+            ok, reason = repo_doctor_module.validate_evidence_reference(
+                repo,
+                {'type': 'url', 'value': value},
+                'capabilities.risk_aware.risk_model',
+                commands,
+            )
+            self.assertTrue(ok, reason)
+
+    def test_evidence_path_and_local_task_source_require_regular_files(self):
+        repo = self.make_repo()
+        ok, reason = repo_doctor_module.validate_evidence_reference(
+            repo,
+            {'type': 'path', 'value': '.'},
+            'capabilities.repeatable_workflow.evidence',
+            {'./scripts/check.sh'},
+        )
+        self.assertFalse(ok)
+        self.assertIn('regular file', reason)
+
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': '.', 'local_contract_dir': '.agentic/tasks'},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('regular file', proc.stdout)
+
+        config['sources']['tasks']['reference'] = 'BACKLOG.md#LEGACY-17'
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT)
+        self.assertIn('[EXISTING_EQUIVALENT] local task source: BACKLOG.md#LEGACY-17', proc.stdout)
+
+    def test_new_task_requires_identifiable_source_semantics(self):
+        repo = self.make_repo()
+        for source in ('yes', 'project risk policy', 'https://exa mple.com', 'https://example.com:bad'):
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, 'TASK-X', 'Task'
+            ], ROOT, check=False)
+            self.assertNotEqual(proc.returncode, 0, source)
+
+        accepted = [
+            ('JIRA-1842', 'TASK-JIRA'),
+            ('https://example.com/issues/1842', 'TASK-URL'),
+            ('BACKLOG.md#LEGACY-17', 'TASK-LOCAL'),
+        ]
+        for source, task_id in accepted:
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, task_id, 'Task'
+            ], ROOT)
+            self.assertIn(f'.agentic/tasks/{task_id}.md', proc.stdout)
+
+    def test_new_task_rejects_missing_local_source_file(self):
+        repo = self.make_repo()
+        proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'MISSING.md#TASK-1', 'TASK-MISSING', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertFalse((repo / '.agentic/tasks/TASK-MISSING.md').exists())
+
+    def test_brownfield_example_uses_stdout_redirection_for_audit(self):
+        example = (ROOT / 'docs/examples/first-brownfield-cycle.md').read_text(encoding='utf-8')
+        self.assertNotIn('repo-audit --repo . --output', example)
+        self.assertIn('repo-audit --repo . > /tmp/audit.md', example)
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

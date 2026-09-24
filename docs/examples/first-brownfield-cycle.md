@@ -2,7 +2,7 @@
 
 Existing fixture имеет layout `legacy_app/`, tests в `qa/`, existing `CONTRIBUTING.md`/`CLAUDE.md`, свой GitHub Actions workflow и `LEGACY-17` в `BACKLOG.md`.
 
-1. `/path/to/template/scripts/repo-audit --repo . --output /tmp/audit.md` — repository не меняется.
+1. `/path/to/template/scripts/repo-audit --repo . > /tmp/audit.md` — repository не меняется.
 2. `/adopt-existing` или equivalent multi-agent workflow — discovery/verification/context subagents исследуют repo независимо; unresolved blocking conflict идёт в `grill-me`.
 3. После Human Gate добавляется минимальный `.agentic-repository.json`.
 4. `repo-doctor --adoption --repo .` проверяет mapping без требования `src/tests/Makefile/docs/tasks`.

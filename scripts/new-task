@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import os
 import re
 import subprocess
 from pathlib import Path
+from urllib.parse import urlparse
 
 PLACEHOLDER_HEAD_RE = re.compile(
     r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\s:]|-(?!\d))',
@@ -15,6 +17,478 @@ PLACEHOLDER_PHRASE_RE = re.compile(
     r'^(?:not\s+(?:specified|set)|replace\s+(?:me|this|with(?:\s+.*)?)|'
     r'to\s+be\s+(?:determined|decided)|n/?a)(?:$|[\s:])',
     re.IGNORECASE,
+)
+EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
+
+
+def clean_git_env() -> dict[str, str]:
+    """Return environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
+
+
+def git_toplevel(path: Path) -> Path | None:
+    """Return the resolved Git worktree root for path."""
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'],
+        cwd=path,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    )
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).resolve()
+
+
+def is_placeholder(value: object) -> bool:
+    """Reject empty and natural-language template sentinel values."""
+    if not isinstance(value, str) or not value.strip():
+        return True
+    normalized = ' '.join(value.strip().split())
+    if normalized.startswith('<') and normalized.endswith('>'):
+        return True
+    return bool(PLACEHOLDER_HEAD_RE.match(normalized) or PLACEHOLDER_PHRASE_RE.match(normalized))
+
+
+def is_valid_http_url(value: object) -> bool:
+    """Validate an absolute HTTP(S) URL suitable as an external task reference."""
+    if not isinstance(value, str) or is_placeholder(value):
+        return False
+    candidate = value.strip()
+    if candidate != value or any(ord(ch) <= 32 or ord(ch) == 127 for ch in candidate) or '\\' in candidate:
+        return False
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    try:
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return False
+    if not host or (port is not None and not (1 <= port <= 65535)):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    if len(host) > 253 or host.endswith('.'):
+        return False
+    try:
+        ascii_host = host.encode('idna').decode('ascii')
+    except UnicodeError:
+        return False
+    labels = ascii_host.split('.')
+    if len(labels) < 2:
+        return False
+    label_re = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?
+
+class SafePathError(RuntimeError):
+    """Raised when a repository-relative output path cannot be traversed safely."""
+
+
+def open_output_dir_fd(root: Path, requested: Path) -> int:
+    """Open/create an output directory via dir_fd traversal without following symlinks."""
+    if requested.is_absolute() or '..' in requested.parts:
+        raise SafePathError('--output-dir must be a repository-relative path without ..')
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise SafePathError('secure output creation requires O_NOFOLLOW/O_DIRECTORY support')
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd:
+        raise SafePathError('secure output creation requires dir_fd support')
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
+    try:
+        for part in requested.parts:
+            if part in {'', '.', '..'}:
+                raise SafePathError(f'invalid output path component: {part!r}')
+            try:
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, 0o755, dir_fd=current_fd)
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise SafePathError(f'unsafe/non-directory output path component: {part}') from exc
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def exclusive_write_at(directory_fd: int, filename: str, content: str) -> None:
+    """Create one new regular file relative to an already-open safe directory."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(filename, flags, 0o644, dir_fd=directory_fd)
+    except FileExistsError as exc:
+        raise SafePathError(f'already exists: {filename}') from exc
+    except OSError as exc:
+        raise SafePathError(f'cannot safely create: {filename}') from exc
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(content)
+
+
+def main() -> None:
+    """Create one full-profile Task or one execution contract tied to an existing task source."""
+    parser = argparse.ArgumentParser(description='Create a full-profile Task or a minimal contract for an external existing-project task.')
+    parser.add_argument('--repo', type=Path, default=None, help='Target repository root. Defaults to the repository containing this script.')
+    parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
+    parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
+    parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
+    parser.add_argument('task_id')
+    parser.add_argument('title', nargs='+')
+    args = parser.parse_args()
+
+    task_id = args.task_id.strip()
+    title = ' '.join(args.title).strip()
+    if not task_id or '/' in task_id or '..' in task_id:
+        parser.error('invalid task id')
+    if not title:
+        parser.error('title must not be empty')
+    template_root = Path(__file__).resolve().parents[1]
+    target_root = args.repo.resolve() if args.repo is not None else template_root
+    if not target_root.is_dir():
+        parser.error(f'target repository directory does not exist: {target_root}')
+
+    top = git_toplevel(target_root)
+    if top is None:
+        parser.error(f'target is not a Git worktree: {target_root}')
+    if top != target_root:
+        parser.error(f'--repo must be the Git worktree root: {top}')
+    if args.contract:
+        source_ok, source_reason = validate_task_source(target_root, args.source)
+        if not source_ok:
+            parser.error(f'--source must be identifiable: {source_reason}')
+
+    template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
+    template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
+
+    if args.output_dir:
+        requested = Path(args.output_dir)
+    elif args.contract:
+        requested = Path('.agentic/tasks')
+    else:
+        requested = Path('docs/tasks')
+
+    content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
+    content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+    filename = f'{task_id}.md'
+
+    try:
+        output_fd = open_output_dir_fd(target_root, requested)
+        try:
+            exclusive_write_at(output_fd, filename, content)
+        finally:
+            os.close(output_fd)
+    except SafePathError as exc:
+        parser.error(str(exc))
+
+    print((requested / filename).as_posix())
+
+
+if __name__ == '__main__':
+    main()
+)
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
+
+
+def clean_git_env() -> dict[str, str]:
+    """Return environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
+
+
+def git_toplevel(path: Path) -> Path | None:
+    """Return the resolved Git worktree root for path."""
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'],
+        cwd=path,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    )
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).resolve()
+
+
+def is_placeholder(value: object) -> bool:
+    """Reject empty and natural-language template sentinel values."""
+    if not isinstance(value, str) or not value.strip():
+        return True
+    normalized = ' '.join(value.strip().split())
+    if normalized.startswith('<') and normalized.endswith('>'):
+        return True
+    return bool(PLACEHOLDER_HEAD_RE.match(normalized) or PLACEHOLDER_PHRASE_RE.match(normalized))
+
+
+class SafePathError(RuntimeError):
+    """Raised when a repository-relative output path cannot be traversed safely."""
+
+
+def open_output_dir_fd(root: Path, requested: Path) -> int:
+    """Open/create an output directory via dir_fd traversal without following symlinks."""
+    if requested.is_absolute() or '..' in requested.parts:
+        raise SafePathError('--output-dir must be a repository-relative path without ..')
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise SafePathError('secure output creation requires O_NOFOLLOW/O_DIRECTORY support')
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd:
+        raise SafePathError('secure output creation requires dir_fd support')
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
+    try:
+        for part in requested.parts:
+            if part in {'', '.', '..'}:
+                raise SafePathError(f'invalid output path component: {part!r}')
+            try:
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, 0o755, dir_fd=current_fd)
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise SafePathError(f'unsafe/non-directory output path component: {part}') from exc
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def exclusive_write_at(directory_fd: int, filename: str, content: str) -> None:
+    """Create one new regular file relative to an already-open safe directory."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(filename, flags, 0o644, dir_fd=directory_fd)
+    except FileExistsError as exc:
+        raise SafePathError(f'already exists: {filename}') from exc
+    except OSError as exc:
+        raise SafePathError(f'cannot safely create: {filename}') from exc
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(content)
+
+
+def main() -> None:
+    """Create one full-profile Task or one execution contract tied to an existing task source."""
+    parser = argparse.ArgumentParser(description='Create a full-profile Task or a minimal contract for an external existing-project task.')
+    parser.add_argument('--repo', type=Path, default=None, help='Target repository root. Defaults to the repository containing this script.')
+    parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
+    parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
+    parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
+    parser.add_argument('task_id')
+    parser.add_argument('title', nargs='+')
+    args = parser.parse_args()
+
+    task_id = args.task_id.strip()
+    title = ' '.join(args.title).strip()
+    if not task_id or '/' in task_id or '..' in task_id:
+        parser.error('invalid task id')
+    if not title:
+        parser.error('title must not be empty')
+    if args.contract and is_placeholder(args.source):
+        parser.error('--source with an identifiable existing task reference is required with --contract')
+
+    template_root = Path(__file__).resolve().parents[1]
+    target_root = args.repo.resolve() if args.repo is not None else template_root
+    if not target_root.is_dir():
+        parser.error(f'target repository directory does not exist: {target_root}')
+
+    top = git_toplevel(target_root)
+    if top is None:
+        parser.error(f'target is not a Git worktree: {target_root}')
+    if top != target_root:
+        parser.error(f'--repo must be the Git worktree root: {top}')
+
+    template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
+    template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
+
+    if args.output_dir:
+        requested = Path(args.output_dir)
+    elif args.contract:
+        requested = Path('.agentic/tasks')
+    else:
+        requested = Path('docs/tasks')
+
+    content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
+    content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+    filename = f'{task_id}.md'
+
+    try:
+        output_fd = open_output_dir_fd(target_root, requested)
+        try:
+            exclusive_write_at(output_fd, filename, content)
+        finally:
+            os.close(output_fd)
+    except SafePathError as exc:
+        parser.error(str(exc))
+
+    print((requested / filename).as_posix())
+
+
+if __name__ == '__main__':
+    main()
+)
+    return all(label_re.fullmatch(label) for label in labels)
+
+
+def validate_task_source(root: Path, value: object) -> tuple[bool, str]:
+    """Accept a strict URL, compact external ID, or existing repository-local regular file reference."""
+    if not isinstance(value, str) or is_placeholder(value):
+        return False, 'source is empty or a placeholder'
+    candidate = value.strip()
+
+    if is_valid_http_url(candidate):
+        return True, ''
+
+    # Path-like Markdown/local references are validated as files before external-ID fallback.
+    path_text, separator, fragment = candidate.partition('#')
+    path_like = '/' in path_text or '\\' in path_text or Path(path_text).suffix.lower() in {'.md', '.markdown', '.txt'}
+    if path_like:
+        raw = Path(path_text)
+        if raw.is_absolute() or '..' in raw.parts:
+            return False, 'local source must be repository-relative without ..'
+        resolved = (root / raw).resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            return False, 'local source escapes the target repository'
+        if not resolved.is_file():
+            return False, 'local source must reference an existing repository-local regular file'
+        if separator and (not fragment.strip() or is_placeholder(fragment)):
+            return False, 'local source has an invalid fragment'
+        return True, ''
+
+    if EXTERNAL_ID_RE.fullmatch(candidate) and (
+        any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
+    ):
+        return True, ''
+    return False, 'source must be a concrete URL, compact external ID, or repository-local file reference'
+
+
+class SafePathError(RuntimeError):
+    """Raised when a repository-relative output path cannot be traversed safely."""
+
+
+def open_output_dir_fd(root: Path, requested: Path) -> int:
+    """Open/create an output directory via dir_fd traversal without following symlinks."""
+    if requested.is_absolute() or '..' in requested.parts:
+        raise SafePathError('--output-dir must be a repository-relative path without ..')
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise SafePathError('secure output creation requires O_NOFOLLOW/O_DIRECTORY support')
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd:
+        raise SafePathError('secure output creation requires dir_fd support')
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
+    try:
+        for part in requested.parts:
+            if part in {'', '.', '..'}:
+                raise SafePathError(f'invalid output path component: {part!r}')
+            try:
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, 0o755, dir_fd=current_fd)
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise SafePathError(f'unsafe/non-directory output path component: {part}') from exc
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def exclusive_write_at(directory_fd: int, filename: str, content: str) -> None:
+    """Create one new regular file relative to an already-open safe directory."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(filename, flags, 0o644, dir_fd=directory_fd)
+    except FileExistsError as exc:
+        raise SafePathError(f'already exists: {filename}') from exc
+    except OSError as exc:
+        raise SafePathError(f'cannot safely create: {filename}') from exc
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(content)
+
+
+def main() -> None:
+    """Create one full-profile Task or one execution contract tied to an existing task source."""
+    parser = argparse.ArgumentParser(description='Create a full-profile Task or a minimal contract for an external existing-project task.')
+    parser.add_argument('--repo', type=Path, default=None, help='Target repository root. Defaults to the repository containing this script.')
+    parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
+    parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
+    parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
+    parser.add_argument('task_id')
+    parser.add_argument('title', nargs='+')
+    args = parser.parse_args()
+
+    task_id = args.task_id.strip()
+    title = ' '.join(args.title).strip()
+    if not task_id or '/' in task_id or '..' in task_id:
+        parser.error('invalid task id')
+    if not title:
+        parser.error('title must not be empty')
+    if args.contract and is_placeholder(args.source):
+        parser.error('--source with an identifiable existing task reference is required with --contract')
+
+    template_root = Path(__file__).resolve().parents[1]
+    target_root = args.repo.resolve() if args.repo is not None else template_root
+    if not target_root.is_dir():
+        parser.error(f'target repository directory does not exist: {target_root}')
+
+    top = git_toplevel(target_root)
+    if top is None:
+        parser.error(f'target is not a Git worktree: {target_root}')
+    if top != target_root:
+        parser.error(f'--repo must be the Git worktree root: {top}')
+
+    template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
+    template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
+
+    if args.output_dir:
+        requested = Path(args.output_dir)
+    elif args.contract:
+        requested = Path('.agentic/tasks')
+    else:
+        requested = Path('docs/tasks')
+
+    content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
+    content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+    filename = f'{task_id}.md'
+
+    try:
+        output_fd = open_output_dir_fd(target_root, requested)
+        try:
+            exclusive_write_at(output_fd, filename, content)
+        finally:
+            os.close(output_fd)
+    except SafePathError as exc:
+        parser.error(str(exc))
+
+    print((requested / filename).as_posix())
+
+
+if __name__ == '__main__':
+    main()
 )
 GIT_REPOSITORY_ENV_VARS = {
     'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',

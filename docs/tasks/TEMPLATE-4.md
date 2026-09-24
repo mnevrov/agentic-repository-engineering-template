@@ -49,7 +49,7 @@
 - [x] Greenfield/full template regression подтверждался GitHub CI на implementation HEADs; final review-fix HEAD требует обычного повторного CI.
 - [x] `repo-doctor --adoption` различает ready / not configured / conflict без требования template skeleton.
 - [x] Existing task может получить локальный execution contract без миграции backlog.
-- [ ] Independent clean-context re-review нового exact final HEAD после round-3 fixes.
+- [ ] Independent clean-context re-review нового exact final HEAD после round-4 fixes.
 
 ## План проверки
 
@@ -74,6 +74,7 @@
 - independent round 1: 4 Major findings, fixed in `917fc172...`;
 - independent round 2 on `917fc172...`: 8 P1 findings, all accepted and addressed by the next review-fix commit;
 - independent round 3 on `f95abce0...`: 3 P1 + 2 P2 findings accepted; remediation prepared with typed evidence refs, stricter placeholders/local-source containment, fd-based creation, and doc alignment;
+- independent round 4 on `25c80df2...`: 2 P1 + 2 P2 findings accepted; remediation prepared for strict URL/regular-file evidence and identifiable new-task sources;
 - closure: new exact-HEAD CI and clean-context re-review required;
 - residual risk: provider-specific adapters remain thin adapters; generic process is defined in provider-neutral docs.
 

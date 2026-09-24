@@ -128,3 +128,8 @@ Telemetry обязательна в greenfield/full profile, но не prerequis
 ## Что не автоматизируется
 
 Tooling не должен сам менять production layout, выбирать authoritative command по convention, переписывать CI/Git flow/backlog/AI instructions, объявлять inferred architecture фактом, массово создавать retrospective ADR или разрешать source-of-truth conflicts.
+
+
+### Validation details for evidence and task references
+
+Typed `url` evidence must be a syntactically valid absolute HTTP(S) URL with a valid host/port and without whitespace, control characters or embedded credentials. A `path` evidence reference and local task source must resolve to an **existing repository-local regular file**; a directory is not evidence. `new-task --contract --source` accepts only a strict URL, compact external ID such as `JIRA-1842`, or an existing repository-local file reference such as `BACKLOG.md#LEGACY-17`.

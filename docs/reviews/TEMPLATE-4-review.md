@@ -81,3 +81,20 @@ The subsequent fix changes capability references to typed evidence references, b
 The first remediation commit failed strict template CI before tests because a generated regex/constants block in `scripts/repo-doctor` was syntactically malformed. The same inspection also caught over-escaped whitespace regexes. Both scripts were corrected before the next independent review; this failed CI attempt is retained as evidence rather than hidden.
 
 A second remediation CI attempt exposed duplicated trailing content after the first valid `main()` block in `scripts/repo-doctor`, producing `SyntaxError: unmatched ')'`. The file is now truncated to the intended single module body before any functional result is accepted.
+
+## Независимый clean-context review — round 4
+
+Exact reviewed HEAD: `25c80df240f06beb94a9a03fef8d625825ee5469`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/2/2/0`.
+
+Accepted findings:
+
+1. typed URL evidence accepted malformed host/port values, allowing a Stage-4 false green;
+2. local task source accepted a directory such as `.` instead of a real backlog/file;
+3. `new-task --contract --source` still accepted non-identifiable prose such as `yes` (P2);
+4. the canonical brownfield example still used the removed `repo-audit --output` option (P2).
+
+The following remediation tightens HTTP(S) URL syntax/host/port validation, requires regular files for path evidence and local task sources, validates new-task source semantics, updates the example, and adds targeted regressions.
