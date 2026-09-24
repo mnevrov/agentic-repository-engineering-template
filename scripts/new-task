@@ -18,7 +18,8 @@ PLACEHOLDER_PHRASE_RE = re.compile(
     r'to\s+be\s+(?:determined|decided)|n/?a)(?:$|[\s:])',
     re.IGNORECASE,
 )
-EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}GIT_REPOSITORY_ENV_VARS = {
+EXTERNAL_ID_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}')
+GIT_REPOSITORY_ENV_VARS = {
     'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
     'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
     'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
