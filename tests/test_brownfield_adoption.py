@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +13,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/fixtures/brownfield-project'
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
 
 _doctor_loader = importlib.machinery.SourceFileLoader('repo_doctor_module', str(ROOT / 'scripts/repo-doctor'))
 _doctor_spec = importlib.util.spec_from_loader(_doctor_loader.name, _doctor_loader)
@@ -20,7 +26,11 @@ _doctor_loader.exec_module(repo_doctor_module)
 
 
 def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=check)
+    """Run test commands without inheriting Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=check, env=env)
 
 
 class BrownfieldAdoptionTests(unittest.TestCase):
@@ -114,6 +124,90 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         proc = run([str(ROOT / 'scripts/new-task'), '--repo', str(repo), 'LOCAL-1', 'Local task'], ROOT)
         self.assertIn('docs/tasks/LOCAL-1.md', proc.stdout)
         self.assertIn('LOCAL-1 — Local task', (repo / 'docs/tasks/LOCAL-1.md').read_text(encoding='utf-8'))
+
+    def test_audit_ignores_inherited_git_repository_override(self):
+        repo = self.make_repo()
+        contaminated = os.environ.copy()
+        contaminated['GIT_DIR'] = str(repo.parent / 'wrong-git-dir')
+        proc = subprocess.run(
+            [str(ROOT / 'scripts/repo-audit'), '--repo', str(repo), '--format', 'json'],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+            env=contaminated,
+        )
+        report = json.loads(proc.stdout)
+        self.assertTrue(report['repository']['git_repository'])
+
+    def test_doctor_ignores_inherited_git_repository_override(self):
+        repo = self.make_repo()
+        previous = os.environ.get('GIT_DIR')
+        os.environ['GIT_DIR'] = str(repo.parent / 'wrong-git-dir')
+        try:
+            self.assertTrue(repo_doctor_module.git_repo(repo))
+        finally:
+            if previous is None:
+                os.environ.pop('GIT_DIR', None)
+            else:
+                os.environ['GIT_DIR'] = previous
+
+    def test_adoption_doctor_requires_task_source_reference(self):
+        repo = self.make_repo()
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'architecture': {'status': 'partial', 'paths': ['README.md']},
+                'decisions': {'kind': 'none', 'paths': []},
+                'tasks': {'kind': 'external', 'local_contract_dir': '.agentic/tasks'},
+                'ci': {'status': 'existing', 'paths': ['.github/workflows/build.yml']},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+                'integration': {'status': 'not_applicable', 'reason': 'fixture has no integration boundary'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('[NOT_CONFIGURED] sources.tasks.reference', proc.stdout)
+
+    def test_adoption_doctor_requires_explicit_check_and_test_gates(self):
+        repo = self.make_repo()
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'architecture': {'status': 'partial', 'paths': ['README.md']},
+                'decisions': {'kind': 'none', 'paths': []},
+                'tasks': {
+                    'kind': 'markdown-backlog',
+                    'reference': 'BACKLOG.md',
+                    'local_contract_dir': '.agentic/tasks',
+                },
+                'ci': {'status': 'existing', 'paths': ['.github/workflows/build.yml']},
+            },
+            'verification': {
+                'integration': {'status': 'not_applicable', 'reason': 'fixture has no integration boundary'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('[NOT_CONFIGURED] verification.check not mapped', proc.stdout)
+        self.assertIn('[NOT_CONFIGURED] verification.test not mapped', proc.stdout)
 
     def test_template_secret_scan_includes_untracked_files_without_values(self):
         repo = self.make_repo()

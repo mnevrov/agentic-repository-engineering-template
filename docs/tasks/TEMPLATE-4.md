@@ -1,6 +1,6 @@
 # TEMPLATE-4 — Brownfield adoption path
 
-**Статус:** in progress  
+**Статус:** in review — final exact-HEAD CI/re-review recorded externally in PR #5  
 **Риск:** B  
 **Human gate:** required — подтверждён владельцем repository 2026-09-24  
 **Владелец:** repository owner  
@@ -36,7 +36,7 @@
 
 ## Критерии приёмки
 
-- [ ] README явно предлагает greenfield и existing-project onboarding.
+- [x] README явно предлагает greenfield и existing-project onboarding.
 - [x] Есть полноценный brownfield guide и staged adoption model.
 - [x] `repo-audit` выполняет безопасный read-only discovery и не выдаёт candidates за authoritative facts.
 - [x] Existing repository не обязан повторять layout template.
@@ -46,35 +46,37 @@
 - [x] Есть agent/subagent orchestration и `grill-me` skill; fallback prompt не является основным механизмом.
 - [x] Есть brownfield fixture с source/tests/docs/CI/existing task.
 - [x] Есть regression tests критической adoption mechanics.
-- [ ] Greenfield/full template regression подтверждён CI.
+- [x] Greenfield/full template regression подтверждался GitHub CI на implementation HEADs; final review-fix HEAD требует обычного повторного CI.
 - [x] `repo-doctor --adoption` различает ready / not configured / conflict без требования template skeleton.
 - [x] Existing task может получить локальный execution contract без миграции backlog.
-- [ ] Independent clean-context review exact final HEAD завершён, findings закрыты.
+- [ ] Independent clean-context re-review exact final HEAD — выполняется после этого evidence/fix commit и фиксируется в PR #5, чтобы сам evidence commit не сдвигал reviewed HEAD.
 
 ## План проверки
 
-- new mechanics: `python3 -m unittest -v tests/test_brownfield_adoption.py`;
+- focused adoption tests через `make test-template`;
 - full regression: `make test-template`;
 - greenfield doctor: `./scripts/repo-doctor --template`;
 - fail-closed gates: существующие template contract tests;
 - GitHub CI exact HEAD;
-- independent clean-context review exact final HEAD.
+- independent CodeRabbit clean-context full review / re-review exact HEAD.
 
 ## Доказательства
 
-- локально до публикации: 5/5 brownfield tests PASS в изолированной рабочей копии новых scripts/fixture/tests;
-- GitHub CI: pending;
-- greenfield regression: pending;
-- exact-HEAD review: pending.
+- до первого независимого review: GitHub Actions `Repository Doctor` run `36005074403` PASS на `3bff1620cfe5ce64c59ae017f91efd85b479dd70`;
+- independent review round 1: CodeRabbit, exact `3bff1620cfe5ce64c59ae017f91efd85b479dd70`, 4 Major findings;
+- findings verified by author and fixed with targeted regression tests in the following commit;
+- final exact-HEAD CI/re-review: сохраняется в PR #5 после публикации этого commit.
 
 ## Review
 
-- self-review: pending final diff;
-- independent review artifact: `docs/reviews/TEMPLATE-4-review.md` — pending;
-- residual risk: provider-specific adapters требуют честной документации fallback semantics.
+- self-review: найдено и до independent review исправлено несколько edge cases (secret scan, path escape, untracked context, stage wording);
+- independent review artifact: `docs/reviews/TEMPLATE-4-review.md`;
+- first independent verdict: changes_required, 4 Major findings;
+- closure: implemented; final exact-HEAD external re-review pending after this file is committed;
+- residual risk: provider-specific adapters remain thin adapters; generic process is defined in provider-neutral docs.
 
 ## Traceability
 
 - owner requirement → TEMPLATE-4;
 - TEMPLATE-4 → brownfield guide/tooling/agents/tests;
-- Task → PR: pending.
+- Task → PR: #5 `feat(adoption): add brownfield repository engineering path`.

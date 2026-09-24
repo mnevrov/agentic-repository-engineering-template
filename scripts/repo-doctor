@@ -26,10 +26,37 @@ ALLOWED_STAGES = {'minimum-context', 'repeatable-workflow', 'independent-verific
 ALLOWED_VERIFICATION = {'configured', 'not_configured', 'not_applicable'}
 SECRET_SCAN_IGNORE_DIRS = {'.git', 'node_modules', 'vendor', '.venv', 'venv', 'build', 'dist', '__pycache__'}
 SECRET_SCAN_BINARY_SUFFIXES = {'.zip', '.png', '.jpg', '.jpeg', '.gif', '.pdf', '.ico', '.woff', '.woff2'}
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_COMMON_DIR',
+    'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE',
+    'GIT_CEILING_DIRECTORIES',
+    'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
+
+
+
+def clean_git_env() -> dict[str, str]:
+    """Return the current environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
 
 
 def git_repo(repo: Path) -> bool:
-    return subprocess.run(['git', 'rev-parse', '--is-inside-work-tree'], cwd=repo, text=True, capture_output=True).returncode == 0
+    """Return whether repo is a Git work tree, ignoring inherited Git overrides."""
+    return subprocess.run(
+        ['git', 'rev-parse', '--is-inside-work-tree'],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    ).returncode == 0
 
 
 def scan_secret_locations(repo: Path) -> list[str]:
@@ -168,6 +195,12 @@ def adoption_mode(repo: Path) -> int:
         incomplete = True
     else:
         print(f"[ OK ] task source kind={tasks['kind']}")
+        reference = tasks.get('reference')
+        if not isinstance(reference, str) or not reference.strip() or reference.lstrip().upper().startswith('TODO'):
+            print('[NOT_CONFIGURED] sources.tasks.reference')
+            incomplete = True
+        else:
+            print(f'[ OK ] task source reference={reference}')
     contract_dir = tasks.get('local_contract_dir') if isinstance(tasks, dict) else None
     if isinstance(contract_dir, str) and contract_dir:
         if (repo / contract_dir).exists():
@@ -186,7 +219,11 @@ def adoption_mode(repo: Path) -> int:
         for name in ('check', 'test', 'integration'):
             gate = verification.get(name)
             if gate is None:
-                print(f'[OPTIONAL] verification.{name} not mapped')
+                if name in {'check', 'test'}:
+                    print(f'[NOT_CONFIGURED] verification.{name} not mapped')
+                    incomplete = True
+                else:
+                    print(f'[OPTIONAL] verification.{name} not mapped')
                 continue
             if not isinstance(gate, dict) or gate.get('status') not in ALLOWED_VERIFICATION:
                 print(f'[CONFLICT] verification.{name}.status invalid')

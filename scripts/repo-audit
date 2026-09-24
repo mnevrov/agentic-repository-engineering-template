@@ -44,10 +44,37 @@ TEST_CONFIGS = {
     'pytest.ini', 'tox.ini', 'noxfile.py', 'jest.config.js', 'jest.config.ts',
     'vitest.config.js', 'vitest.config.ts', 'phpunit.xml', 'phpunit.xml.dist',
 }
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_COMMON_DIR',
+    'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE',
+    'GIT_CEILING_DIRECTORIES',
+    'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
+
+
+
+def clean_git_env() -> dict[str, str]:
+    """Return the current environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
 
 
 def run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(['git', *args], cwd=repo, text=True, capture_output=True)
+    """Run Git against repo regardless of inherited repository-location variables."""
+    return subprocess.run(
+        ['git', *args],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    )
 
 
 def is_git_repo(repo: Path) -> bool:
