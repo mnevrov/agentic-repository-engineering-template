@@ -90,7 +90,41 @@ def is_valid_http_url(value: object) -> bool:
     labels = ascii_host.split('.')
     if len(labels) < 2:
         return False
-    label_re = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?
+    label_re = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+    return all(label_re.fullmatch(label) for label in labels)
+
+
+def validate_task_source(root: Path, value: object) -> tuple[bool, str]:
+    """Accept a strict URL, compact external ID, or existing repository-local regular file reference."""
+    if not isinstance(value, str) or is_placeholder(value):
+        return False, 'source is empty or a placeholder'
+    candidate = value.strip()
+
+    if is_valid_http_url(candidate):
+        return True, ''
+
+    path_text, separator, fragment = candidate.partition('#')
+    path_like = '/' in path_text or '\\' in path_text or Path(path_text).suffix.lower() in {'.md', '.markdown', '.txt'}
+    if path_like:
+        raw = Path(path_text)
+        if raw.is_absolute() or '..' in raw.parts:
+            return False, 'local source must be repository-relative without ..'
+        resolved = (root / raw).resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            return False, 'local source escapes the target repository'
+        if not resolved.is_file():
+            return False, 'local source must reference an existing repository-local regular file'
+        if separator and (not fragment.strip() or is_placeholder(fragment)):
+            return False, 'local source has an invalid fragment'
+        return True, ''
+
+    if EXTERNAL_ID_RE.fullmatch(candidate) and (
+        any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
+    ):
+        return True, ''
+    return False, 'source must be a concrete URL, compact external ID, or repository-local file reference'
 
 class SafePathError(RuntimeError):
     """Raised when a repository-relative output path cannot be traversed safely."""

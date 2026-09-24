@@ -233,7 +233,21 @@ def is_valid_http_url(value: object) -> bool:
     labels = ascii_host.split('.')
     if len(labels) < 2:
         return False
-    label_re = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?
+    label_re = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+    return all(label_re.fullmatch(label) for label in labels)
+
+
+def is_identifiable_external_reference(value: object) -> bool:
+    """Accept a strict HTTP(S) URL or compact external identifier, not descriptive prose."""
+    if is_valid_http_url(value):
+        return True
+    if is_placeholder(value):
+        return False
+    assert isinstance(value, str)
+    candidate = value.strip()
+    if not EXTERNAL_ID_RE.fullmatch(candidate):
+        return False
+    return any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
 
 def validate_local_path(repo: Path, value: object, label: str, require_exists: bool) -> tuple[bool, str, Path | None]:
     """Validate a repository-local path and reject absolute, traversal, or symlink escape."""

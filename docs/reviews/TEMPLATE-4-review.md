@@ -98,3 +98,7 @@ Accepted findings:
 4. the canonical brownfield example still used the removed `repo-audit --output` option (P2).
 
 The following remediation tightens HTTP(S) URL syntax/host/port validation, requires regular files for path evidence and local task sources, validates new-task source semantics, updates the example, and adds targeted regressions.
+
+## Author fix after round-4 remediation CI
+
+The first round-4 remediation CI attempt (`1018e9ca...`) failed before tests because both generated strict-URL validator blocks were truncated at the hostname-label regex, also removing the following helper functions. The validators were reconstructed as complete blocks using `fullmatch()` without an end-anchor regex before functional verification was accepted.
