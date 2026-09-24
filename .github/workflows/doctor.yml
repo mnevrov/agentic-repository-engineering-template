@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check repository skeleton
-        run: ./scripts/repo-doctor
+        run: ./scripts/repo-doctor --template
       - name: Validate telemetry
         run: python3 scripts/validate-telemetry.py
       - name: Enforce telemetry contract
