@@ -246,3 +246,6 @@ git push -u origin task/TASK-17
 ```
 
 Имена веток и формат commit message можно заменить на принятый в вашей команде стандарт.
+
+
+Для неоднозначного existing task reference можно явно указать `--source-kind external` или `--source-kind local`. Default `auto` сохраняет обычные URL/ID и file-like references; slash сам по себе не означает local filesystem path.

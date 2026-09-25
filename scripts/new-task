@@ -121,20 +121,55 @@ def is_valid_http_url(value: object) -> bool:
     return all(label_re.fullmatch(label) for label in labels)
 
 
-def validate_task_source(root: Path, value: object) -> tuple[bool, str]:
-    """Accept a canonical strict URL, compact external ID, or repository-local file reference."""
+def validate_local_task_source(root: Path, candidate: str) -> tuple[bool, str]:
+    """Validate one explicit repository-local task source."""
+    path_text, separator, fragment = candidate.partition('#')
+    raw = Path(path_text)
+    if raw.is_absolute() or '..' in raw.parts:
+        return False, 'local source must be repository-relative without ..'
+    resolved = (root / raw).resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return False, 'local source escapes the target repository'
+    if not resolved.is_file():
+        return False, 'local source must reference an existing repository-local regular file'
+    if separator and (not fragment.strip() or is_placeholder(fragment)):
+        return False, 'local source has an invalid fragment'
+    return True, ''
+
+
+def validate_external_task_source(candidate: str) -> tuple[bool, str]:
+    """Validate one explicit external task URL/compact ID."""
+    if looks_like_http_reference(candidate):
+        if is_valid_http_url(candidate):
+            return True, ''
+        return False, 'HTTP(S)-looking source is not a valid strict URL'
+    if '://' in candidate:
+        return False, 'URL-like source must pass strict HTTP(S) URL validation'
+    if EXTERNAL_ID_RE.fullmatch(candidate) and (
+        any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
+    ):
+        return True, ''
+    return False, 'external source must be a concrete URL or compact external ID'
+
+
+def validate_task_source(root: Path, value: object, source_kind: str = 'auto') -> tuple[bool, str]:
+    """Validate a canonical task source with explicit local/external disambiguation."""
     if not isinstance(value, str) or is_placeholder(value):
         return False, 'source is empty or a placeholder'
     candidate = value.strip()
     if candidate != value:
         return False, 'source must not contain leading/trailing whitespace'
+    if source_kind not in {'auto', 'external', 'local'}:
+        return False, 'source kind must be auto, external, or local'
 
-    if looks_like_http_reference(candidate):
-        if is_valid_http_url(candidate):
-            return True, ''
-        return False, 'HTTP(S)-looking source is not a valid strict URL'
+    if source_kind == 'local':
+        return validate_local_task_source(root, candidate)
+    if source_kind == 'external':
+        return validate_external_task_source(candidate)
 
-    path_text, separator, fragment = candidate.partition('#')
+    path_text = candidate.partition('#')[0]
     raw = Path(path_text)
     known_file_suffix = raw.suffix.lower() in {'.md', '.markdown', '.txt'}
     explicit_local_syntax = (
@@ -143,28 +178,9 @@ def validate_task_source(root: Path, value: object) -> tuple[bool, str]:
         or '..' in raw.parts
         or '\\' in path_text
     )
-    path_like = known_file_suffix or explicit_local_syntax or (root / raw).exists()
-    if path_like:
-        if raw.is_absolute() or '..' in raw.parts:
-            return False, 'local source must be repository-relative without ..'
-        resolved = (root / raw).resolve(strict=False)
-        try:
-            resolved.relative_to(root)
-        except ValueError:
-            return False, 'local source escapes the target repository'
-        if not resolved.is_file():
-            return False, 'local source must reference an existing repository-local regular file'
-        if separator and (not fragment.strip() or is_placeholder(fragment)):
-            return False, 'local source has an invalid fragment'
-        return True, ''
-
-    if '://' in candidate:
-        return False, 'URL-like source must pass strict HTTP(S) URL validation'
-    if EXTERNAL_ID_RE.fullmatch(candidate) and (
-        any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
-    ):
-        return True, ''
-    return False, 'source must be a concrete URL, compact external ID, or repository-local file reference'
+    if known_file_suffix or explicit_local_syntax:
+        return validate_local_task_source(root, candidate)
+    return validate_external_task_source(candidate)
 
 class SafePathError(RuntimeError):
     """Raised when a repository-relative output path cannot be traversed safely."""
@@ -220,6 +236,12 @@ def main() -> None:
     parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
     parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
     parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
+    parser.add_argument(
+        '--source-kind',
+        choices=('auto', 'external', 'local'),
+        default='auto',
+        help='Disambiguate --source. auto keeps common URLs/IDs and file-like references backward-compatible.',
+    )
     parser.add_argument('task_id')
     parser.add_argument('title', nargs='+')
     args = parser.parse_args()
@@ -241,7 +263,7 @@ def main() -> None:
     if top != target_root:
         parser.error(f'--repo must be the Git worktree root: {top}')
     if args.contract:
-        source_ok, source_reason = validate_task_source(target_root, args.source)
+        source_ok, source_reason = validate_task_source(target_root, args.source, args.source_kind)
         if not source_ok:
             parser.error(f'--source must be identifiable: {source_reason}')
 

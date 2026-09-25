@@ -939,6 +939,36 @@ class BrownfieldAdoptionTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0, source)
 
 
+
+    def test_new_task_slash_id_is_not_hijacked_by_existing_local_directory(self):
+        repo = self.make_repo()
+        (repo / 'owner/repo').mkdir(parents=True)
+        proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'owner/repo#123', 'TASK-SLASH-COLLISION', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-SLASH-COLLISION.md', proc.stdout)
+
+    def test_new_task_source_kind_local_supports_extensionless_file(self):
+        repo = self.make_repo()
+        source = repo / 'tasks/current'
+        source.parent.mkdir()
+        source.write_text('TASK-LOCAL\n', encoding='utf-8')
+        proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source-kind', 'local', '--source', 'tasks/current#TASK-LOCAL',
+            'TASK-LOCAL-KIND', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-LOCAL-KIND.md', proc.stdout)
+
+        rejected = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source-kind', 'local', '--source', 'JIRA-1842',
+            'TASK-LOCAL-REJECT', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

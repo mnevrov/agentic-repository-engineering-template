@@ -137,3 +137,7 @@ Accepted findings:
 2. slash-containing compact external IDs such as `owner/repo#123` were accepted by repo-doctor but misclassified as local files by `new-task`.
 
 The remediation validates every literal percent escape and aligns `new-task` source classification so explicit/existing file references remain local while compact slash IDs remain external identifiers.
+
+## Author self-review after round-6 remediation
+
+After the reviewed slash-ID inconsistency was fixed, focused self-review found one residual ambiguity: an external slash ID could still be hijacked by a same-named local directory because auto classification consulted filesystem existence. `new-task` now exposes backward-compatible `--source-kind auto|external|local`; auto treats only explicit/file-like syntax as local, while explicit `local` supports extensionless repository files. This removes filesystem-dependent interpretation of compact slash IDs.
