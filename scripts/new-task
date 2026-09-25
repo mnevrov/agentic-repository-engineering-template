@@ -72,12 +72,19 @@ def has_forbidden_url_characters(value: str) -> bool:
     )
 
 
+def has_valid_percent_encoding(value: str) -> bool:
+    """Require every literal percent sign to start one complete ASCII hex escape."""
+    return re.search(r'%(?![0-9A-Fa-f]{2})', value) is None
+
+
 def is_valid_http_url(value: object) -> bool:
     """Validate a strict absolute HTTP(S) URL suitable as an external task reference."""
     if not isinstance(value, str) or is_placeholder(value):
         return False
     candidate = value.strip()
     if candidate != value or has_forbidden_url_characters(candidate):
+        return False
+    if not has_valid_percent_encoding(candidate):
         return False
     try:
         parsed = urlparse(candidate)
@@ -128,9 +135,16 @@ def validate_task_source(root: Path, value: object) -> tuple[bool, str]:
         return False, 'HTTP(S)-looking source is not a valid strict URL'
 
     path_text, separator, fragment = candidate.partition('#')
-    path_like = '/' in path_text or '\\' in path_text or Path(path_text).suffix.lower() in {'.md', '.markdown', '.txt'}
+    raw = Path(path_text)
+    known_file_suffix = raw.suffix.lower() in {'.md', '.markdown', '.txt'}
+    explicit_local_syntax = (
+        raw.is_absolute()
+        or path_text.startswith(('./', '../', '.\\', '..\\'))
+        or '..' in raw.parts
+        or '\\' in path_text
+    )
+    path_like = known_file_suffix or explicit_local_syntax or (root / raw).exists()
     if path_like:
-        raw = Path(path_text)
         if raw.is_absolute() or '..' in raw.parts:
             return False, 'local source must be repository-relative without ..'
         resolved = (root / raw).resolve(strict=False)

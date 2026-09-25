@@ -122,3 +122,18 @@ Accepted findings:
 3. `new-task --source` validated a stripped value but persisted the original outer whitespace (P3).
 
 The remediation reserves the HTTP(S) namespace before external-ID fallback, rejects Unicode separator/control/format characters, revalidates IDNA-encoded hostname length/labels, and rejects non-canonical outer whitespace in `new-task --source`.
+
+## Независимый clean-context review — round 6
+
+Exact reviewed HEAD: `9d38d9b116b8dc90070a4c72e5671ec6bce29764`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/1/1/0`.
+
+Accepted findings:
+
+1. malformed literal percent escapes such as `%ZZ`, `%` and `%0G` were still accepted by the strict HTTP(S) validator and could satisfy Stage-4 evidence;
+2. slash-containing compact external IDs such as `owner/repo#123` were accepted by repo-doctor but misclassified as local files by `new-task`.
+
+The remediation validates every literal percent escape and aligns `new-task` source classification so explicit/existing file references remain local while compact slash IDs remain external identifiers.

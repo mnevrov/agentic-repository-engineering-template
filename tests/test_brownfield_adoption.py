@@ -829,6 +829,116 @@ class BrownfieldAdoptionTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0, repr(source))
 
 
+
+    def test_strict_url_percent_encoding(self):
+        invalid = (
+            'https://example.com/%',
+            'https://example.com/%0G',
+            'https://example.com/%GG',
+            'https://example.com/%Z1',
+        )
+        valid = (
+            'https://example.com/%20',
+            'https://example.com/%2F',
+            'https://example.com/%25',
+        )
+        for value in invalid:
+            self.assertFalse(repo_doctor_module.is_valid_http_url(value), value)
+            self.assertFalse(repo_doctor_module.is_identifiable_external_reference(value), value)
+            self.assertFalse(new_task_module.is_valid_http_url(value), value)
+        for value in valid:
+            self.assertTrue(repo_doctor_module.is_valid_http_url(value), value)
+            self.assertTrue(new_task_module.is_valid_http_url(value), value)
+
+    def test_risk_aware_doctor_rejects_malformed_percent_url_evidence(self):
+        repo = self.make_repo()
+        contract = repo / '.agentic/tasks/LEGACY-17.md'
+        contract.parent.mkdir(parents=True)
+        contract.write_text('# LEGACY-17\n## Acceptance Criteria\n## Evidence\n', encoding='utf-8')
+        configured = lambda ref_type, value: {
+            'status': 'configured',
+            'reference': {'type': ref_type, 'value': value},
+        }
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'risk-aware',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': ['CLAUDE.md']},
+                'architecture': {'status': 'partial', 'paths': ['README.md']},
+                'decisions': {'kind': 'none', 'paths': []},
+                'tasks': {'kind': 'markdown-backlog', 'reference': 'BACKLOG.md', 'local_contract_dir': '.agentic/tasks'},
+                'ci': {'status': 'existing', 'paths': ['.github/workflows/build.yml']},
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+                'integration': {'status': 'not_applicable', 'reason': 'fixture has no integration boundary'},
+            },
+            'capabilities': {
+                'repeatable_workflow': {
+                    'task_contract': configured('path', '.agentic/tasks/LEGACY-17.md'),
+                    'acceptance_criteria': configured('path', '.agentic/tasks/LEGACY-17.md#acceptance-criteria'),
+                    'evidence': configured('url', 'https://example.com/%ZZ'),
+                    'definition_of_done': configured('path', 'GOVERNANCE.md#definition-of-done'),
+                },
+                'independent_verification': {
+                    'review_mechanism': configured('path', 'GOVERNANCE.md#independent-review'),
+                    'exact_sha_diff_evidence': configured('path', 'GOVERNANCE.md#independent-review'),
+                    'ci_pr_linkage': configured('path', '.github/workflows/build.yml'),
+                },
+                'risk_aware': {
+                    'risk_model': configured('path', 'GOVERNANCE.md#risk-model'),
+                    'high_risk_gates': configured('path', 'GOVERNANCE.md#risk-model'),
+                    'adversarial_review': configured('path', 'GOVERNANCE.md#adversarial-review'),
+                    'technical_enforcement': configured('path', '.github/workflows/build.yml'),
+                },
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('valid absolute http(s) URL', proc.stdout)
+
+    def test_new_task_accepts_slash_compact_ids_without_treating_them_as_files(self):
+        repo = self.make_repo()
+        accepted = (
+            ('owner/repo#123', 'TASK-SLASH-1'),
+            ('PROJ/team-123', 'TASK-SLASH-2'),
+        )
+        for source, task_id in accepted:
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, task_id, 'Task'
+            ], ROOT)
+            self.assertIn(f'.agentic/tasks/{task_id}.md', proc.stdout)
+            content = (repo / f'.agentic/tasks/{task_id}.md').read_text(encoding='utf-8')
+            self.assertIn(source, content)
+
+        missing_local = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'MISSING.md#TASK-1', 'TASK-MISSING-LOCAL', 'Task'
+        ], ROOT, check=False)
+        self.assertNotEqual(missing_local.returncode, 0)
+
+    def test_new_task_rejects_malformed_percent_url_source(self):
+        repo = self.make_repo()
+        for index, source in enumerate((
+            'https://example.com/%',
+            'https://example.com/%0G',
+            'https://example.com/%GG',
+            'https://example.com/%Z1',
+        )):
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, f'TASK-PCT-{index}', 'Task'
+            ], ROOT, check=False)
+            self.assertNotEqual(proc.returncode, 0, source)
+
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

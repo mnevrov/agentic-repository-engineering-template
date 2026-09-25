@@ -208,12 +208,19 @@ def has_forbidden_url_characters(value: str) -> bool:
     )
 
 
+def has_valid_percent_encoding(value: str) -> bool:
+    """Require every literal percent sign to start one complete ASCII hex escape."""
+    return re.search(r'%(?![0-9A-Fa-f]{2})', value) is None
+
+
 def is_valid_http_url(value: object) -> bool:
     """Validate a strict absolute HTTP(S) URL with a stable IDNA hostname."""
     if not isinstance(value, str) or is_placeholder(value):
         return False
     candidate = value.strip()
     if candidate != value or has_forbidden_url_characters(candidate):
+        return False
+    if not has_valid_percent_encoding(candidate):
         return False
 
     try:
