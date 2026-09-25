@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -194,15 +195,31 @@ def is_placeholder(value: object) -> bool:
     return bool(PLACEHOLDER_HEAD_RE.match(normalized) or PLACEHOLDER_PHRASE_RE.match(normalized))
 
 
+def looks_like_http_reference(value: object) -> bool:
+    """Return whether a value syntactically claims the HTTP(S) reference namespace."""
+    return isinstance(value, str) and value.lstrip().lower().startswith(('http:', 'https:'))
+
+
+def has_forbidden_url_characters(value: str) -> bool:
+    """Reject literal whitespace, Unicode separators/controls/formats, and backslashes."""
+    return any(
+        ch == '\\' or ch.isspace() or unicodedata.category(ch)[0] in {'C', 'Z'}
+        for ch in value
+    )
+
+
 def is_valid_http_url(value: object) -> bool:
-    """Validate an absolute HTTP(S) URL without credentials, whitespace, or malformed host/port."""
+    """Validate a strict absolute HTTP(S) URL with a stable IDNA hostname."""
     if not isinstance(value, str) or is_placeholder(value):
         return False
     candidate = value.strip()
-    if candidate != value or any(ord(ch) <= 32 or ord(ch) == 127 for ch in candidate) or '\\' in candidate:
+    if candidate != value or has_forbidden_url_characters(candidate):
         return False
 
-    parsed = urlparse(candidate)
+    try:
+        parsed = urlparse(candidate)
+    except ValueError:
+        return False
     if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
         return False
     if parsed.username is not None or parsed.password is not None:
@@ -224,28 +241,31 @@ def is_valid_http_url(value: object) -> bool:
     except ValueError:
         pass
 
-    if len(host) > 253 or host.endswith('.'):
+    if host.endswith('.') or has_forbidden_url_characters(host):
         return False
     try:
         ascii_host = host.encode('idna').decode('ascii')
     except UnicodeError:
         return False
+    if len(ascii_host) > 253:
+        return False
     labels = ascii_host.split('.')
-    if len(labels) < 2:
+    if len(labels) < 2 or any(not label or len(label) > 63 for label in labels):
         return False
     label_re = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
     return all(label_re.fullmatch(label) for label in labels)
 
 
 def is_identifiable_external_reference(value: object) -> bool:
-    """Accept a strict HTTP(S) URL or compact external identifier, not descriptive prose."""
-    if is_valid_http_url(value):
-        return True
-    if is_placeholder(value):
+    """Accept a strict HTTP(S) URL or compact external ID without URL type-confusion."""
+    if not isinstance(value, str) or is_placeholder(value):
         return False
-    assert isinstance(value, str)
     candidate = value.strip()
-    if not EXTERNAL_ID_RE.fullmatch(candidate):
+    if candidate != value:
+        return False
+    if looks_like_http_reference(candidate):
+        return is_valid_http_url(candidate)
+    if '://' in candidate or not EXTERNAL_ID_RE.fullmatch(candidate):
         return False
     return any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
 

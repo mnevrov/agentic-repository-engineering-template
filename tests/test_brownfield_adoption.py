@@ -749,6 +749,86 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertNotIn('repo-audit --repo . --output', example)
         self.assertIn('repo-audit --repo . > /tmp/audit.md', example)
 
+
+    def test_http_looking_values_never_fall_back_to_external_id(self):
+        malformed = (
+            'https://example.com:bad',
+            'https://example.com:99999',
+            'https://-bad.example/path',
+            'https://bad-.example/path',
+            'https://exa_mple.com/path',
+        )
+        for value in malformed:
+            self.assertFalse(repo_doctor_module.is_valid_http_url(value), value)
+            self.assertFalse(repo_doctor_module.is_identifiable_external_reference(value), value)
+
+        repo = self.make_repo()
+        for value in malformed:
+            ok, _ = repo_doctor_module.validate_evidence_reference(
+                repo,
+                {'type': 'external_id', 'value': value},
+                'capabilities.risk_aware.risk_model',
+                {'./scripts/check.sh'},
+            )
+            self.assertFalse(ok, value)
+
+    def test_strict_url_rejects_unicode_space_control_format_and_post_idna_overflow(self):
+        overlong_idna_host = '.'.join(['ä' * 57] * 4)
+        malformed = (
+            'https://example.com/\u0085evidence',
+            'https://example.com/\u2028evidence',
+            'https://example.com/\u00a0evidence',
+            'https://exa\u200bmple.com/evidence',
+            f'https://{overlong_idna_host}/evidence',
+        )
+        for value in malformed:
+            self.assertFalse(repo_doctor_module.is_valid_http_url(value), repr(value))
+            self.assertFalse(new_task_module.is_valid_http_url(value), repr(value))
+
+    def test_non_local_task_source_rejects_malformed_http_fallback(self):
+        repo = self.make_repo()
+        config = {
+            'schema_version': 1,
+            'mode': 'adoption',
+            'stage': 'minimum-context',
+            'source_of_truth_precedence': ['repository_instructions', 'current_task_contract'],
+            'sources': {
+                'instructions': {'primary': 'CONTRIBUTING.md', 'also_read': []},
+                'tasks': {
+                    'kind': 'external',
+                    'reference': 'https://example.com:bad',
+                    'local_contract_dir': '.agentic/tasks',
+                },
+            },
+            'verification': {
+                'check': {'status': 'configured', 'command': './scripts/check.sh'},
+                'test': {'status': 'configured', 'command': './scripts/test.sh'},
+            },
+            'unresolved_conflicts': [],
+            'open_questions': [],
+        }
+        (repo / '.agentic-repository.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+        proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('concrete URL/external ID', proc.stdout)
+
+    def test_new_task_rejects_malformed_http_fallback_and_outer_whitespace(self):
+        repo = self.make_repo()
+        rejected = (
+            'https://example.com:bad',
+            'https://example.com:99999',
+            'https://exa_mple.com/path',
+            ' JIRA-1842 ',
+            ' https://example.com/issues/1842 ',
+        )
+        for index, source in enumerate(rejected):
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, f'TASK-R{index}', 'Task'
+            ], ROOT, check=False)
+            self.assertNotEqual(proc.returncode, 0, repr(source))
+
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

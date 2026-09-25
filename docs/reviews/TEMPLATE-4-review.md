@@ -106,3 +106,19 @@ The first round-4 remediation CI attempt (`1018e9ca...`) failed before tests bec
 A second round-4 remediation CI attempt (`3582a961...`) showed that both scripts still contained duplicated legacy tails after their first valid entrypoint. The first module bodies already contained the intended strict validators; both files were therefore canonicalized by removing everything after the first `if __name__ == '__main__': main()` block. No functional claim is based on either failed intermediate HEAD.
 
 The next exact-head run reached `make test-template`, where importing `scripts/new-task` exposed one remaining malformed `EXTERNAL_ID_RE` constant from the earlier generated block. It was replaced by an unanchored regex used exclusively through `fullmatch()`, preserving the intended semantics without generated end-anchor risk.
+
+## Независимый clean-context review — round 5
+
+Exact reviewed HEAD: `4ebf4214eca38105464b3e4c97bfb8a3da18efec`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/2/0/1`.
+
+Accepted findings:
+
+1. malformed HTTP(S)-looking values could fail strict URL validation and then be reclassified as generic `external_id`, preserving a Stage-4/task-source false-green route;
+2. strict URL validation missed Unicode whitespace/control/format characters and post-IDNA hostname length overflow;
+3. `new-task --source` validated a stripped value but persisted the original outer whitespace (P3).
+
+The remediation reserves the HTTP(S) namespace before external-ID fallback, rejects Unicode separator/control/format characters, revalidates IDNA-encoded hostname length/labels, and rejects non-canonical outer whitespace in `new-task --source`.
