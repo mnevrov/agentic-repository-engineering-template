@@ -1,82 +1,89 @@
 # Памятка: инженерный репозиторий для AI-разработки
 
-## Два режима
+Публичный шаблон: https://github.com/mnevrov/agentic-repository-engineering-template
 
-- **Greenfield:** новый проект получает full repository-engineering skeleton.
-- **Brownfield:** существующий проект сначала проходит read-only discovery; template переиспользует его layout, CI, commands, tracker и docs, добавляя только минимальный context для следующей bounded Task.
+Короткая точка входа после митапа: [`docs/MEETUP.md`](docs/MEETUP.md).
 
-Brownfield workflow использует специализированные discovery/verification/context subagents, gap-analysis agent, adoption-orchestrator и `grill-me` только для вопросов, которые нельзя доказать из repository.
+> Статус demo и репетиции хранится в [`docs/workshop/STATUS.md`](docs/workshop/STATUS.md). Пока полный dry-run не завершён, meetup-tag/release не создаётся и demo/checkpoints не считаются подтверждёнными.
 
 ## Главная идея
 
 AI-агент не должен быть носителем памяти проекта. **Память проекта — сам репозиторий.**
 
-### Перед изменением кода агент должен знать
+До изменения кода агент должен понимать:
 
-- что именно требуется сделать;
-- какие критерии приёмки;
-- какие архитектурные ограничения нельзя нарушать;
-- чем результат будет проверен.
+- какую одну задачу он решает;
+- scope и Acceptance Criteria;
+- архитектурные ограничения;
+- риск и Human Gate;
+- какими реальными проверками будет подтверждён результат.
 
-### Один цикл
+## Два режима
 
-```text
-1. Прочитать INDEX / ROADMAP / TODO / архитектуру
-2. Выбрать одну небольшую задачу
-3. Сформулировать критерии приёмки
-4. Получить подтверждение человека
-5. Сначала тест или проверяемый сценарий
-6. Реализовать минимальное изменение
-7. Запустить проверки
-8. Провести самопроверку
-9. Провести независимую проверку
-10. Собрать доказательства
-11. Обновить документацию и статус
-12. Сделать один осмысленный коммит
+### Greenfield — новый проект
+
+Создайте repository через **Use this template**, затем:
+
+```bash
+./scripts/repo-doctor
+make test-template
 ```
 
-### Три уровня риска
+После этого настройте реальные project gates: `make check`, `make test` и при необходимости `make test-integration`. В исходном template они намеренно `NOT CONFIGURED`.
 
-- **A — обычный:** локальная логика, документация, низкий риск.
-- **B — повышенный:** интеграции, данные, миграции, конкурентность, API.
-- **C — критический:** безопасность, авторизация, удаление данных, секреты, платёжная логика, необратимые операции.
+Полный путь: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
-Чем выше риск, тем сильнее независимая проверка.
+### Brownfield — существующий проект
 
-### «Готово» означает наличие доказательств
+Не копируйте template поверх существующего repository. Сначала выполните read-only audit:
 
-Хорошее доказательство — это не «код выглядит правильно», а:
-
-- тест прошёл;
-- интеграционный сценарий прошёл;
-- реальная проверка на целевой среде прошла;
-- результат воспроизводим другим человеком или агентом.
-
-### Минимум файлов, которые стоит хранить
-
-```text
-AGENTS.md / CLAUDE.md
-architecture/overview.md
-architecture/invariants.md
-adr/
-ROADMAP.md
-TODO.md
-development-cycle.md
-code-review.md
-definition-of-done.md
-tasks/
-reviews/
+```bash
+git clone --depth 1 https://github.com/mnevrov/agentic-repository-engineering-template.git /tmp/agentic-repository-template
+cd existing-project
+python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . > /tmp/agentic-repository-audit.md
 ```
 
-### Что измерять после нескольких недель работы
+Дальше: discovery → verification → context/truth → gap analysis → Human Gate → минимальный adoption layer → одна существующая bounded Task.
 
-- время выполнения задачи;
-- количество повторных циклов;
-- число и тяжесть замечаний review;
-- время тестов/CI;
-- долю успешных реальных проверок;
-- токены и стоимость моделей;
-- время участия человека;
-- дефекты, ушедшие за пределы цикла разработки.
+Полный путь: [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md).
 
-Шаблон уже содержит JSONL-формат телеметрии и утилиту `scripts/record-cycle.py`.
+## Один инженерный цикл
+
+```text
+repository context
+→ одна Task + Acceptance Criteria
+→ risk + Human Gate
+→ минимальная реализация
+→ реальные checks/tests
+→ self-review
+→ independent clean-context review
+→ evidence
+→ telemetry
+→ commit / PR
+```
+
+## Уровни риска
+
+- **A** — локальная логика, документация, низкий риск.
+- **B** — API, интеграции, данные, миграции, concurrency.
+- **C** — auth, права, секреты, destructive actions, деньги, криптография.
+
+Чем выше риск, тем сильнее Human Gate и независимая проверка.
+
+## «Готово» означает evidence
+
+- **E0** — изменение только создано.
+- **E1** — static check / compile / lint.
+- **E2** — unit/contract tests.
+- **E3** — integration/e2e.
+- **E4** — target/production-like verification.
+- **E5** — повторяемое подтверждение в эксплуатации.
+
+Сообщение модели «готово» не повышает evidence level.
+
+## Что открыть дальше
+
+- [`docs/MEETUP.md`](docs/MEETUP.md) — маршрут после выступления.
+- [`docs/INDEX.md`](docs/INDEX.md) — карта документации.
+- [`docs/reference/commands.md`](docs/reference/commands.md) — команды.
+- [`docs/workshop/STATUS.md`](docs/workshop/STATUS.md) — статус тестового прогона.

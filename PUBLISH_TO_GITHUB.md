@@ -1,82 +1,85 @@
-# Публикация как GitHub Template Repository
+# Публичный template и подготовка версии для митапа
 
-Целевой публичный адрес для раздачи слушателям:
+Публичный repository:
 
-```text
 https://github.com/mnevrov/agentic-repository-engineering-template
-```
 
-## Вариант 1 — через GitHub CLI
+Репозиторий уже используется как GitHub Template Repository. Этот документ больше не описывает первоначальное создание repository; он фиксирует **проверки публичной упаковки и правила подготовки meetup-версии**.
 
-Требуется установленный и авторизованный `gh`:
+## Проверить публичную конфигурацию
 
-```bash
-gh auth status
-```
+Через GitHub UI убедитесь, что:
 
-Из корня этого каталога:
+- repository public;
+- включён **Template repository**;
+- доступна кнопка **Use this template**;
+- Wiki/Projects не используются без необходимости;
+- README первым экраном показывает выбор Greenfield/Brownfield;
+- [`docs/MEETUP.md`](docs/MEETUP.md) доступен слушателю без дополнительных пояснений.
 
-```bash
-git init
-git add -A
-git commit -m "initial template"
-
-gh repo create mnevrov/agentic-repository-engineering-template \
-  --public \
-  --description "Template repository for controlled AI-agent development cycles" \
-  --source . \
-  --remote origin \
-  --push
-
-gh api -X PATCH repos/mnevrov/agentic-repository-engineering-template \
-  -f is_template=true \
-  -f has_issues=true \
-  -f has_projects=false \
-  -f has_wiki=false
-
-gh repo edit mnevrov/agentic-repository-engineering-template \
-  --add-topic ai-agents \
-  --add-topic repository-template \
-  --add-topic engineering-process \
-  --add-topic adr \
-  --add-topic tdd
-```
-
-После этого на странице репозитория появится кнопка **Use this template**.
-
-## Вариант 2 — через интерфейс GitHub
-
-1. Создайте новый публичный репозиторий `agentic-repository-engineering-template`.
-2. Загрузите содержимое этого каталога в `main`.
-3. Откройте **Settings → General → Template repository**.
-4. Включите флаг **Template repository**.
-5. Отключите Wiki/Projects, если они не нужны.
-6. Добавьте topics: `ai-agents`, `repository-template`, `engineering-process`, `adr`, `tdd`.
-
-## Проверка перед публикацией
+При наличии GitHub CLI:
 
 ```bash
-./scripts/repo-doctor
-make check
-make test
-python scripts/record-cycle.py \
-  --task EXAMPLE-1 \
-  --started 2026-08-20T12:00:00Z \
-  --ended 2026-08-20T12:20:00Z \
-  --result passed \
-  --risk A \
-  --model dry-run \
-  --review-rounds 1 \
-  --evidence docs/tasks/EXAMPLE-1.md
-python scripts/telemetry-summary.py
+gh repo view mnevrov/agentic-repository-engineering-template
+gh api repos/mnevrov/agentic-repository-engineering-template --jq '{is_template,visibility,default_branch,topics}'
 ```
-
-Если не хотите публиковать демонстрационную запись телеметрии, удалите `.ai/telemetry/cycles.jsonl` перед коммитом.
 
 ## QR-код
 
-Файл `docs/workshop/github-template-qr.png` указывает на будущий публичный URL:
+Файл:
 
-```text
+`docs/workshop/github-template-qr.png`
+
+должен вести на:
+
 https://github.com/mnevrov/agentic-repository-engineering-template
+
+Перед выступлением QR проверяется с отдельного телефона/браузера, не только с машины ведущего.
+
+## Что проверять в самом template repository
+
+```bash
+./scripts/repo-doctor --template
+make test-template
+make telemetry-check
 ```
+
+Важно: в **самом reusable template** project gates `make check` / `make test` намеренно остаются `NOT CONFIGURED` и возвращают ненулевой код. Это fail-closed contract, а не ошибка публикации.
+
+Зелёными `make check` / `make test` они должны стать уже в конкретном demo/product repository после настройки реальных project gates.
+
+## Telemetry
+
+Не удаляйте существующий `.ai/telemetry/cycles.jsonl` ради «чистой» публикации или презентации. Для full-profile template telemetry является append-only engineering evidence.
+
+Если конкретный demo создаётся из template, его telemetry должна отражать реальные попытки, включая `partial` / `failed`, если они фактически были.
+
+## Когда можно фиксировать meetup-версию
+
+**Не создавайте meetup tag/release до полного тестового прогона.**
+
+Источник текущего статуса:
+
+[`docs/workshop/STATUS.md`](docs/workshop/STATUS.md)
+
+Минимальный gate перед фиксацией:
+
+1. отдельный demo repository реально создан из template;
+2. bootstrap и project gates проверены;
+3. DEMO-1…DEMO-4 пройдены либо эквивалентный утверждённый сценарий выполнен;
+4. checkpoints реально checkout'ятся;
+5. новая agent session восстанавливает context из repository;
+6. Human Gate наблюдался на live-кандидате;
+7. review/evidence/telemetry проверены;
+8. Plan B реально восстановлен;
+9. презентационная репетиция проведена с таймером;
+10. QR и публичные ссылки проверены с внешнего устройства.
+
+Только после этого можно:
+
+- обновить `docs/workshop/STATUS.md` на verified;
+- при необходимости опубликовать demo repository/checkpoints;
+- создать meetup tag/release;
+- зафиксировать точный commit/tag в слайдах.
+
+До этого `main` остаётся рабочей веткой подготовки, а не обещанием неизменной meetup-версии.

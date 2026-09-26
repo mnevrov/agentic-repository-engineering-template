@@ -4,6 +4,8 @@
 
 Шаблон не привязан к конкретному языку программирования или AI-инструменту. Его можно использовать с OpenCode, Codex CLI, Claude Code и другими coding agents.
 
+> **После митапа:** начните с [`docs/MEETUP.md`](docs/MEETUP.md). Там есть короткий маршрут для нового и существующего проекта, ссылки на материалы выступления и текущий статус demo/rehearsal. Meetup-версия намеренно **не фиксируется tag/release до полного тестового прогона**.
+
 ## Два равноправных режима использования
 
 ### Новый проект — Greenfield
@@ -24,12 +26,16 @@ python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . > /tmp/agen
 
 ## С чего начать
 
+Выберите путь по состоянию проекта:
 
-Если вы впервые открыли этот репозиторий, начните с подробной инструкции:
+| Ситуация | Начните здесь |
+|---|---|
+| Пришли с митапа и хотите быстро понять подход | [`docs/MEETUP.md`](docs/MEETUP.md) |
+| Создаёте новый проект | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) |
+| Внедряете подход в существующий repository | [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md) |
+| Нужны только команды | [`docs/reference/commands.md`](docs/reference/commands.md) |
 
-**[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — пошаговый запуск нового проекта и первый полный агентский цикл.**
-
-Краткий путь выглядит так:
+Greenfield-краткий путь выглядит так:
 
 ```text
 создать проект из шаблона
@@ -216,6 +222,7 @@ make telemetry-summary
 
 ## Навигация по документации
 
+- [`docs/MEETUP.md`](docs/MEETUP.md) — короткая точка входа для слушателей митапа.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — greenfield onboarding.
 - [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md) — brownfield adoption без перестройки существующего repository.
 - [`docs/process/agent-orchestration.md`](docs/process/agent-orchestration.md) — agent/subagent roles и `grill-me` escalation.
@@ -227,7 +234,9 @@ make telemetry-summary
 - [`docs/process/evidence-ladder.md`](docs/process/evidence-ladder.md) — уровни доказательств.
 - [`docs/process/telemetry.md`](docs/process/telemetry.md) — телеметрия и метрики.
 - [`docs/process/traceability.md`](docs/process/traceability.md) — трассируемость решений и изменений.
-- [`docs/examples/first-agent-cycle.md`](docs/examples/first-agent-cycle.md) — конкретный пример первого цикла.
+- [`docs/examples/first-agent-cycle.md`](docs/examples/first-agent-cycle.md) — конкретный greenfield-пример первого цикла.
+- [`docs/examples/first-brownfield-cycle.md`](docs/examples/first-brownfield-cycle.md) — короткий brownfield-пример.
+- [`docs/workshop/STATUS.md`](docs/workshop/STATUS.md) — фактический статус demo/dry-run перед митапом.
 
 ## Главный принцип
 
