@@ -1,6 +1,7 @@
 # TASK-XXX — Название
 
 **Источник задачи:** EXTERNAL-TASK-REF  
+**Тип источника:** EXTERNAL-TASK-KIND  
 **Статус:** planned  
 **Риск:** project-native / A / B / C / unknown  
 **Human gate:** required / delegated / project policy  

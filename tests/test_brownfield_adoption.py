@@ -969,6 +969,67 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
 
 
+
+    def test_new_task_auto_rejects_missing_common_file_like_sources(self):
+        repo = self.make_repo()
+        for index, source in enumerate((
+            'BACKLOG.yaml#TASK-1',
+            'BACKLOG.yml#TASK-1',
+            'tasks.json#TASK-1',
+            'tasks.toml#TASK-1',
+            'tasks.csv#TASK-1',
+        )):
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, f'TASK-FILELIKE-{index}', 'Task'
+            ], ROOT, check=False)
+            self.assertNotEqual(proc.returncode, 0, source)
+
+    def test_new_task_persists_resolved_source_kind(self):
+        repo = self.make_repo()
+        local_source = repo / 'owner/repo'
+        local_source.parent.mkdir(parents=True)
+        local_source.write_text('TASK-123\n', encoding='utf-8')
+
+        local_proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source-kind', 'local', '--source', 'owner/repo#123',
+            'TASK-KIND-LOCAL', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-KIND-LOCAL.md', local_proc.stdout)
+        local_contract = (repo / '.agentic/tasks/TASK-KIND-LOCAL.md').read_text(encoding='utf-8')
+        self.assertIn('**Источник задачи:** owner/repo#123', local_contract)
+        self.assertIn('**Тип источника:** local', local_contract)
+
+        external_proc = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source-kind', 'external', '--source', 'owner/repo#123',
+            'TASK-KIND-EXTERNAL', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-KIND-EXTERNAL.md', external_proc.stdout)
+        external_contract = (repo / '.agentic/tasks/TASK-KIND-EXTERNAL.md').read_text(encoding='utf-8')
+        self.assertIn('**Источник задачи:** owner/repo#123', external_contract)
+        self.assertIn('**Тип источника:** external', external_contract)
+
+    def test_new_task_auto_persists_resolved_kind(self):
+        repo = self.make_repo()
+        external = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'JIRA-1842', 'TASK-AUTO-EXT', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-AUTO-EXT.md', external.stdout)
+        ext_contract = (repo / '.agentic/tasks/TASK-AUTO-EXT.md').read_text(encoding='utf-8')
+        self.assertIn('**Тип источника:** external', ext_contract)
+
+        local = run([
+            str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+            '--source', 'BACKLOG.md#LEGACY-17', 'TASK-AUTO-LOCAL', 'Task'
+        ], ROOT)
+        self.assertIn('.agentic/tasks/TASK-AUTO-LOCAL.md', local.stdout)
+        local_contract = (repo / '.agentic/tasks/TASK-AUTO-LOCAL.md').read_text(encoding='utf-8')
+        self.assertIn('**Тип источника:** local', local_contract)
+
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

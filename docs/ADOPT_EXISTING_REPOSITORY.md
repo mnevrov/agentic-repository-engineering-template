@@ -139,3 +139,6 @@ Strict HTTP(S) evidence/task URLs additionally require every literal `%` to begi
 
 
 Для неоднозначных task references `new-task` поддерживает `--source-kind external|local` (default `auto`). Например, `owner/repo#123` остаётся compact external ID даже если похожий local directory существует; extensionless local source можно зафиксировать явно через `--source-kind local --source tasks/current#TASK-1`.
+
+
+`new-task` сохраняет resolved source namespace в execution contract отдельным полем `Тип источника: local|external`. В `auto` распространённые file-like suffixes (Markdown/text/YAML/JSON/TOML/INI/CFG/CSV/TSV/XML) трактуются как local и поэтому отсутствующий файл fail-closed. Если project-native external ID намеренно выглядит как file path, используйте `--source-kind external`; для нестандартного/extensionless local source — `--source-kind local`.

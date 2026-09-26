@@ -141,3 +141,15 @@ The remediation validates every literal percent escape and aligns `new-task` sou
 ## Author self-review after round-6 remediation
 
 After the reviewed slash-ID inconsistency was fixed, focused self-review found one residual ambiguity: an external slash ID could still be hijacked by a same-named local directory because auto classification consulted filesystem existence. `new-task` now exposes backward-compatible `--source-kind auto|external|local`; auto treats only explicit/file-like syntax as local, while explicit `local` supports extensionless repository files. This removes filesystem-dependent interpretation of compact slash IDs.
+
+## Независимый clean-context review — round 7
+
+Exact reviewed HEAD: `f426dfbcca89a44c2d45ce91ad79531ab4ceacd9`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/0/1/0`.
+
+Accepted finding: `new-task --source-kind auto` recognized only a narrow file suffix set, so missing YAML/JSON-like task sources could be reclassified as external IDs; additionally, explicit `local|external` resolution was not persisted in the generated execution contract.
+
+The remediation broadens fail-closed file-like auto detection and persists the resolved source namespace as `Тип источника: local|external`, with regression coverage for missing YAML/YML/JSON/TOML/CSV references and identical raw source strings resolved once as local and once as external.

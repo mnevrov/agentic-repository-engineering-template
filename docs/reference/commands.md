@@ -249,3 +249,6 @@ git push -u origin task/TASK-17
 
 
 Для неоднозначного existing task reference можно явно указать `--source-kind external` или `--source-kind local`. Default `auto` сохраняет обычные URL/ID и file-like references; slash сам по себе не означает local filesystem path.
+
+
+Generated execution contract сохраняет не только raw task reference, но и resolved `local|external` source kind. Это делает выбор `--source-kind` воспроизводимым после создания contract. В auto распространённые file-like suffixes fail-closed как local sources.

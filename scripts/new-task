@@ -20,6 +20,11 @@ PLACEHOLDER_PHRASE_RE = re.compile(
     re.IGNORECASE,
 )
 EXTERNAL_ID_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}')
+FILE_LIKE_SUFFIXES = {
+    '.md', '.markdown', '.txt', '.rst', '.adoc',
+    '.yaml', '.yml', '.json', '.toml', '.ini', '.cfg',
+    '.csv', '.tsv', '.xml',
+}
 GIT_REPOSITORY_ENV_VARS = {
     'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
     'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
@@ -154,33 +159,42 @@ def validate_external_task_source(candidate: str) -> tuple[bool, str]:
     return False, 'external source must be a concrete URL or compact external ID'
 
 
-def validate_task_source(root: Path, value: object, source_kind: str = 'auto') -> tuple[bool, str]:
-    """Validate a canonical task source with explicit local/external disambiguation."""
+def validate_task_source(
+    root: Path,
+    value: object,
+    source_kind: str = 'auto',
+) -> tuple[bool, str, str | None, str | None]:
+    """Validate and resolve a task source to canonical local/external semantics."""
     if not isinstance(value, str) or is_placeholder(value):
-        return False, 'source is empty or a placeholder'
+        return False, 'source is empty or a placeholder', None, None
     candidate = value.strip()
     if candidate != value:
-        return False, 'source must not contain leading/trailing whitespace'
+        return False, 'source must not contain leading/trailing whitespace', None, None
     if source_kind not in {'auto', 'external', 'local'}:
-        return False, 'source kind must be auto, external, or local'
+        return False, 'source kind must be auto, external, or local', None, None
 
     if source_kind == 'local':
-        return validate_local_task_source(root, candidate)
+        ok, reason = validate_local_task_source(root, candidate)
+        return ok, reason, 'local' if ok else None, candidate if ok else None
     if source_kind == 'external':
-        return validate_external_task_source(candidate)
+        ok, reason = validate_external_task_source(candidate)
+        return ok, reason, 'external' if ok else None, candidate if ok else None
 
     path_text = candidate.partition('#')[0]
     raw = Path(path_text)
-    known_file_suffix = raw.suffix.lower() in {'.md', '.markdown', '.txt'}
+    file_like_suffix = raw.suffix.lower() in FILE_LIKE_SUFFIXES
     explicit_local_syntax = (
         raw.is_absolute()
         or path_text.startswith(('./', '../', '.\\', '..\\'))
         or '..' in raw.parts
         or '\\' in path_text
     )
-    if known_file_suffix or explicit_local_syntax:
-        return validate_local_task_source(root, candidate)
-    return validate_external_task_source(candidate)
+    if file_like_suffix or explicit_local_syntax:
+        ok, reason = validate_local_task_source(root, candidate)
+        return ok, reason, 'local' if ok else None, candidate if ok else None
+
+    ok, reason = validate_external_task_source(candidate)
+    return ok, reason, 'external' if ok else None, candidate if ok else None
 
 class SafePathError(RuntimeError):
     """Raised when a repository-relative output path cannot be traversed safely."""
@@ -262,8 +276,12 @@ def main() -> None:
         parser.error(f'target is not a Git worktree: {target_root}')
     if top != target_root:
         parser.error(f'--repo must be the Git worktree root: {top}')
+    resolved_source_kind = None
+    resolved_source = None
     if args.contract:
-        source_ok, source_reason = validate_task_source(target_root, args.source, args.source_kind)
+        source_ok, source_reason, resolved_source_kind, resolved_source = validate_task_source(
+            target_root, args.source, args.source_kind
+        )
         if not source_ok:
             parser.error(f'--source must be identifiable: {source_reason}')
 
@@ -278,7 +296,8 @@ def main() -> None:
         requested = Path('docs/tasks')
 
     content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
-    content = content.replace('EXTERNAL-TASK-REF', args.source or 'not applicable', 1)
+    content = content.replace('EXTERNAL-TASK-REF', resolved_source or 'not applicable', 1)
+    content = content.replace('EXTERNAL-TASK-KIND', resolved_source_kind or 'not applicable', 1)
     filename = f'{task_id}.md'
 
     try:
