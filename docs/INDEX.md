@@ -2,16 +2,22 @@
 
 Это основная карта документации для человека и AI-агента.
 
-Если вы впервые используете шаблон, начните с:
+Если вы впервые используете шаблон, сначала выберите сценарий:
 
-**[`GETTING_STARTED.md`](GETTING_STARTED.md) — подробная пошаговая инструкция от создания проекта до первого полного агентского цикла.**
+| Ситуация | Документ |
+|---|---|
+| После митапа / быстрый обзор | [`MEETUP.md`](MEETUP.md) |
+| Новый проект | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| Существующий проект | [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md) |
 
 ## Быстрые ссылки
 
+- [`MEETUP.md`](MEETUP.md) — короткая публичная точка входа.
 - [`GETTING_STARTED.md`](GETTING_STARTED.md) — новый проект / greenfield.
 - [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md) — существующий проект / brownfield adoption.
 - [`adoption/GAP_CHECKLIST.md`](adoption/GAP_CHECKLIST.md) — структурированный gap analysis.
 - [`reference/commands.md`](reference/commands.md) — справочник команд.
+- [`reference/adoption-validation.md`](reference/adoption-validation.md) — низкоуровневый Brownfield validation contract.
 - [`examples/first-agent-cycle.md`](examples/first-agent-cycle.md) — пример первого цикла.
 
 ## Архитектура
@@ -45,7 +51,7 @@
 ## Материалы и примеры
 
 - [`examples/`](examples/) — примеры применения процесса.
-- [`workshop/`](workshop/) — демонстрационные материалы.
+- [`workshop/`](workshop/) — материалы ведущего и сценарии демонстрации; их фактическая готовность отслеживается в [`workshop/STATUS.md`](workshop/STATUS.md).
 - [`workshop/team-demo-scenario.md`](workshop/team-demo-scenario.md) — рекомендуемый сценарий командной презентации на 15 минут с несколькими итерациями.
 - [`workshop/demo-project.md`](workshop/demo-project.md) — спецификация демонстрационного Mini Task Board, Task DEMO-1…DEMO-4 и checkpoints.
 - [`workshop/real-repository-dry-run.md`](workshop/real-repository-dry-run.md) — подробный контрольный прогон на отдельном реальном репозитории: bootstrap, четыре итерации, review/evidence/telemetry, checkpoints, CI и timed rehearsal.

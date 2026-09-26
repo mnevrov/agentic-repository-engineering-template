@@ -111,6 +111,24 @@ Jira/GitHub/GitLab/Markdown backlog остаётся task-management source of t
 
 По умолчанию создаётся только `.agentic/tasks/JIRA-1842.md`. Это scope/AC/verification/evidence contract одной итерации, а не копия tracker.
 
+Для неоднозначного source используйте явный namespace:
+
+```bash
+/path/to/template/scripts/new-task \
+  --repo . --contract \
+  --source-kind local \
+  --source 'tasks/current#TASK-1' \
+  TASK-1 "Короткое название"
+
+/path/to/template/scripts/new-task \
+  --repo . --contract \
+  --source-kind external \
+  --source 'owner/repo#123' \
+  TASK-1 "Короткое название"
+```
+
+Default `--source-kind auto` сначала резервирует HTTP(S) namespace, затем распознаёт очевидные file-like local references, иначе проверяет compact external ID. Generated execution contract сохраняет resolved `local|external` source kind.
+
 ## Запись telemetry
 
 Минимум:
@@ -247,8 +265,3 @@ git push -u origin task/TASK-17
 
 Имена веток и формат commit message можно заменить на принятый в вашей команде стандарт.
 
-
-Для неоднозначного existing task reference можно явно указать `--source-kind external` или `--source-kind local`. Default `auto` сохраняет обычные URL/ID и file-like references; slash сам по себе не означает local filesystem path.
-
-
-Generated execution contract сохраняет не только raw task reference, но и resolved `local|external` source kind. Это делает выбор `--source-kind` воспроизводимым после создания contract. В auto распространённые file-like suffixes fail-closed как local sources.
