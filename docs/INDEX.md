@@ -17,6 +17,7 @@
 - [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md) — существующий проект / brownfield adoption.
 - [`adoption/GAP_CHECKLIST.md`](adoption/GAP_CHECKLIST.md) — структурированный gap analysis.
 - [`reference/commands.md`](reference/commands.md) — справочник команд.
+- [`reference/adoption-validation.md`](reference/adoption-validation.md) — низкоуровневый Brownfield validation contract.
 - [`examples/first-agent-cycle.md`](examples/first-agent-cycle.md) — пример первого цикла.
 
 ## Архитектура

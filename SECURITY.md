@@ -8,4 +8,10 @@
 - Destructive operations должны требовать явного подтверждения и иметь безопасный режим проверки.
 - Security finding не скрывается ради завершения задачи; он фиксируется в review/TODO.
 
-Для публичного проекта добавьте отдельный канал ответственного сообщения об уязвимостях.
+## Сообщение об уязвимости
+
+Не публикуйте credential, exploit details или другие чувствительные данные в обычном GitHub Issue.
+
+Если на странице repository доступен **Security → Report a vulnerability**, используйте private vulnerability report / GitHub Security Advisory. Если private reporting недоступен, сначала свяжитесь с владельцем repository через его GitHub profile и согласуйте приватный канал передачи деталей.
+
+Обычные несекретные вопросы по security contract можно обсуждать через GitHub Issues.
