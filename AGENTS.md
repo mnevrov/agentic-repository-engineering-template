@@ -2,6 +2,10 @@
 
 Этот репозиторий разрабатывается короткими проверяемыми циклами.
 
+## Brownfield adoption
+
+Этот файл — default contract для repository, созданного из template. **Не копируй и не перезаписывай им существующий `AGENTS.md`/AI instructions brownfield-проекта.** Для existing repository сначала следуй `docs/ADOPT_EXISTING_REPOSITORY.md`, используй read-only discovery subagents и `grill-me` для blocking ambiguities, затем добавляй только согласованный minimal layer.
+
 ## Перед любой задачей
 
 1. Прочитай `docs/INDEX.md`.

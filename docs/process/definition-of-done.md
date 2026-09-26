@@ -1,6 +1,8 @@
 # Definition of Done
 
-Задача считается завершённой, когда применимые пункты отмечены.
+Это **full-profile baseline**. Greenfield использует его целиком. Brownfield adoption применяет только gates, включённые текущей стадией и project policy, и явно фиксирует deferred gates; ранний pilot не должен называться full-profile compliant.
+
+Задача считается завершённой в заявленном process profile, когда применимые пункты отмечены.
 
 ## Требования
 
@@ -20,7 +22,7 @@
 ## Review
 
 - [ ] self-review завершён;
-- [ ] независимый clean-context review завершён и сохранён в `docs/reviews/`;
+- [ ] для full profile / brownfield Stage 3+ независимый clean-context review завершён и сохранён в `docs/reviews/` или project-native equivalent;
 - [ ] для A нет открытых P0;
 - [ ] для B/C нет открытых P0/P1;
 - [ ] для C выполнен атакующий review и повторные раунды до нулевых P0/P1;
@@ -42,7 +44,9 @@
 
 ## Телеметрия
 
-- [ ] текущая попытка записана в `.ai/telemetry/cycles.jsonl`;
+Применяется обязательно в full profile и в brownfield только после явного включения telemetry policy.
+
+- [ ] текущая попытка записана в `.ai/telemetry/cycles.jsonl` или project-configured equivalent;
 - [ ] запись прошла `scripts/validate-telemetry.py`;
 - [ ] CI подтверждает append-only историю и наличие новой записи для содержательного изменения;
 - [ ] автоматически доступные Git/duration evidence не заменены вручную выдуманными значениями;

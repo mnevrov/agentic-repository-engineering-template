@@ -1,24 +1,322 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import ipaddress
+import os
+import re
+import subprocess
+import unicodedata
 from pathlib import Path
-import sys
+from urllib.parse import urlparse
 
-if len(sys.argv) < 3:
-    print('usage: scripts/new-task TASK-ID "Title"', file=sys.stderr)
-    raise SystemExit(2)
+PLACEHOLDER_HEAD_RE = re.compile(
+    r'^(?:todo|tbd|unknown|unset|changeme)(?:$|[\s:]|-(?!\d))',
+    re.IGNORECASE,
+)
+PLACEHOLDER_PHRASE_RE = re.compile(
+    r'^(?:not\s+(?:specified|set)|replace\s+(?:me|this|with(?:\s+.*)?)|'
+    r'to\s+be\s+(?:determined|decided)|n/?a)(?:$|[\s:])',
+    re.IGNORECASE,
+)
+EXTERNAL_ID_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:/#-]{2,199}')
+FILE_LIKE_SUFFIXES = {
+    '.md', '.markdown', '.txt', '.rst', '.adoc',
+    '.yaml', '.yml', '.json', '.toml', '.ini', '.cfg',
+    '.csv', '.tsv', '.xml',
+}
+GIT_REPOSITORY_ENV_VARS = {
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+}
 
-task_id = sys.argv[1].strip()
-title = ' '.join(sys.argv[2:]).strip()
-if not task_id or '/' in task_id or '..' in task_id:
-    print('invalid task id', file=sys.stderr)
-    raise SystemExit(2)
 
-root = Path(__file__).resolve().parents[1]
-template = (root / '.ai/templates/TASK.md').read_text(encoding='utf-8')
-out = root / 'docs/tasks' / f'{task_id}.md'
-if out.exists():
-    print(f'already exists: {out}', file=sys.stderr)
-    raise SystemExit(1)
+def clean_git_env() -> dict[str, str]:
+    """Return environment without Git repository-location overrides."""
+    env = os.environ.copy()
+    for key in GIT_REPOSITORY_ENV_VARS:
+        env.pop(key, None)
+    return env
 
-content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
-out.write_text(content, encoding='utf-8')
-print(out.relative_to(root))
+
+def git_toplevel(path: Path) -> Path | None:
+    """Return the resolved Git worktree root for path."""
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'],
+        cwd=path,
+        text=True,
+        capture_output=True,
+        env=clean_git_env(),
+    )
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).resolve()
+
+
+def is_placeholder(value: object) -> bool:
+    """Reject empty and natural-language template sentinel values."""
+    if not isinstance(value, str) or not value.strip():
+        return True
+    normalized = ' '.join(value.strip().split())
+    if normalized.startswith('<') and normalized.endswith('>'):
+        return True
+    return bool(PLACEHOLDER_HEAD_RE.match(normalized) or PLACEHOLDER_PHRASE_RE.match(normalized))
+
+
+def looks_like_http_reference(value: object) -> bool:
+    """Return whether a value syntactically claims the HTTP(S) reference namespace."""
+    return isinstance(value, str) and value.lstrip().lower().startswith(('http:', 'https:'))
+
+
+def has_forbidden_url_characters(value: str) -> bool:
+    """Reject literal whitespace, Unicode separators/controls/formats, and backslashes."""
+    return any(
+        ch == '\\' or ch.isspace() or unicodedata.category(ch)[0] in {'C', 'Z'}
+        for ch in value
+    )
+
+
+def has_valid_percent_encoding(value: str) -> bool:
+    """Require every literal percent sign to start one complete ASCII hex escape."""
+    return re.search(r'%(?![0-9A-Fa-f]{2})', value) is None
+
+
+def is_valid_http_url(value: object) -> bool:
+    """Validate a strict absolute HTTP(S) URL suitable as an external task reference."""
+    if not isinstance(value, str) or is_placeholder(value):
+        return False
+    candidate = value.strip()
+    if candidate != value or has_forbidden_url_characters(candidate):
+        return False
+    if not has_valid_percent_encoding(candidate):
+        return False
+    try:
+        parsed = urlparse(candidate)
+    except ValueError:
+        return False
+    if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    try:
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return False
+    if not host or (port is not None and not (1 <= port <= 65535)):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    if host.endswith('.') or has_forbidden_url_characters(host):
+        return False
+    try:
+        ascii_host = host.encode('idna').decode('ascii')
+    except UnicodeError:
+        return False
+    if len(ascii_host) > 253:
+        return False
+    labels = ascii_host.split('.')
+    if len(labels) < 2 or any(not label or len(label) > 63 for label in labels):
+        return False
+    label_re = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+    return all(label_re.fullmatch(label) for label in labels)
+
+
+def validate_local_task_source(root: Path, candidate: str) -> tuple[bool, str]:
+    """Validate one explicit repository-local task source."""
+    path_text, separator, fragment = candidate.partition('#')
+    raw = Path(path_text)
+    if raw.is_absolute() or '..' in raw.parts:
+        return False, 'local source must be repository-relative without ..'
+    resolved = (root / raw).resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return False, 'local source escapes the target repository'
+    if not resolved.is_file():
+        return False, 'local source must reference an existing repository-local regular file'
+    if separator and (not fragment.strip() or is_placeholder(fragment)):
+        return False, 'local source has an invalid fragment'
+    return True, ''
+
+
+def validate_external_task_source(candidate: str) -> tuple[bool, str]:
+    """Validate one explicit external task URL/compact ID."""
+    if looks_like_http_reference(candidate):
+        if is_valid_http_url(candidate):
+            return True, ''
+        return False, 'HTTP(S)-looking source is not a valid strict URL'
+    if '://' in candidate:
+        return False, 'URL-like source must pass strict HTTP(S) URL validation'
+    if EXTERNAL_ID_RE.fullmatch(candidate) and (
+        any(ch.isdigit() for ch in candidate) or any(ch in '-:#/' for ch in candidate)
+    ):
+        return True, ''
+    return False, 'external source must be a concrete URL or compact external ID'
+
+
+def validate_task_source(
+    root: Path,
+    value: object,
+    source_kind: str = 'auto',
+) -> tuple[bool, str, str | None, str | None]:
+    """Validate and resolve a task source to canonical local/external semantics."""
+    if not isinstance(value, str) or is_placeholder(value):
+        return False, 'source is empty or a placeholder', None, None
+    candidate = value.strip()
+    if candidate != value:
+        return False, 'source must not contain leading/trailing whitespace', None, None
+    if source_kind not in {'auto', 'external', 'local'}:
+        return False, 'source kind must be auto, external, or local', None, None
+
+    if source_kind == 'local':
+        ok, reason = validate_local_task_source(root, candidate)
+        return ok, reason, 'local' if ok else None, candidate if ok else None
+    if source_kind == 'external':
+        ok, reason = validate_external_task_source(candidate)
+        return ok, reason, 'external' if ok else None, candidate if ok else None
+
+    # In auto mode, HTTP(S)-looking values own their namespace before any
+    # filesystem/file-suffix heuristics. A malformed URL fails closed here.
+    if looks_like_http_reference(candidate):
+        ok, reason = validate_external_task_source(candidate)
+        return ok, reason, 'external' if ok else None, candidate if ok else None
+
+    path_text = candidate.partition('#')[0]
+    raw = Path(path_text)
+    file_like_suffix = raw.suffix.lower() in FILE_LIKE_SUFFIXES
+    explicit_local_syntax = (
+        raw.is_absolute()
+        or path_text.startswith(('./', '../', '.\\', '..\\'))
+        or '..' in raw.parts
+        or '\\' in path_text
+    )
+    if file_like_suffix or explicit_local_syntax:
+        ok, reason = validate_local_task_source(root, candidate)
+        return ok, reason, 'local' if ok else None, candidate if ok else None
+
+    ok, reason = validate_external_task_source(candidate)
+    return ok, reason, 'external' if ok else None, candidate if ok else None
+
+class SafePathError(RuntimeError):
+    """Raised when a repository-relative output path cannot be traversed safely."""
+
+
+def open_output_dir_fd(root: Path, requested: Path) -> int:
+    """Open/create an output directory via dir_fd traversal without following symlinks."""
+    if requested.is_absolute() or '..' in requested.parts:
+        raise SafePathError('--output-dir must be a repository-relative path without ..')
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise SafePathError('secure output creation requires O_NOFOLLOW/O_DIRECTORY support')
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd:
+        raise SafePathError('secure output creation requires dir_fd support')
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
+    try:
+        for part in requested.parts:
+            if part in {'', '.', '..'}:
+                raise SafePathError(f'invalid output path component: {part!r}')
+            try:
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, 0o755, dir_fd=current_fd)
+                child_fd = os.open(part, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise SafePathError(f'unsafe/non-directory output path component: {part}') from exc
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def exclusive_write_at(directory_fd: int, filename: str, content: str) -> None:
+    """Create one new regular file relative to an already-open safe directory."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        fd = os.open(filename, flags, 0o644, dir_fd=directory_fd)
+    except FileExistsError as exc:
+        raise SafePathError(f'already exists: {filename}') from exc
+    except OSError as exc:
+        raise SafePathError(f'cannot safely create: {filename}') from exc
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(content)
+
+
+def main() -> None:
+    """Create one full-profile Task or one execution contract tied to an existing task source."""
+    parser = argparse.ArgumentParser(description='Create a full-profile Task or a minimal contract for an external existing-project task.')
+    parser.add_argument('--repo', type=Path, default=None, help='Target repository root. Defaults to the repository containing this script.')
+    parser.add_argument('--contract', action='store_true', help='Create a minimal execution contract instead of a full template Task.')
+    parser.add_argument('--output-dir', default=None, help='Override output directory relative to target repository.')
+    parser.add_argument('--source', default=None, help='Existing task reference, e.g. JIRA-1842, issue URL, or BACKLOG.md#TASK.')
+    parser.add_argument(
+        '--source-kind',
+        choices=('auto', 'external', 'local'),
+        default='auto',
+        help='Disambiguate --source. auto keeps common URLs/IDs and file-like references backward-compatible.',
+    )
+    parser.add_argument('task_id')
+    parser.add_argument('title', nargs='+')
+    args = parser.parse_args()
+
+    task_id = args.task_id.strip()
+    title = ' '.join(args.title).strip()
+    if not task_id or '/' in task_id or '..' in task_id:
+        parser.error('invalid task id')
+    if not title:
+        parser.error('title must not be empty')
+    template_root = Path(__file__).resolve().parents[1]
+    target_root = args.repo.resolve() if args.repo is not None else template_root
+    if not target_root.is_dir():
+        parser.error(f'target repository directory does not exist: {target_root}')
+
+    top = git_toplevel(target_root)
+    if top is None:
+        parser.error(f'target is not a Git worktree: {target_root}')
+    if top != target_root:
+        parser.error(f'--repo must be the Git worktree root: {top}')
+    resolved_source_kind = None
+    resolved_source = None
+    if args.contract:
+        source_ok, source_reason, resolved_source_kind, resolved_source = validate_task_source(
+            target_root, args.source, args.source_kind
+        )
+        if not source_ok:
+            parser.error(f'--source must be identifiable: {source_reason}')
+
+    template_name = 'TASK_CONTRACT.md' if args.contract else 'TASK.md'
+    template = (template_root / '.ai/templates' / template_name).read_text(encoding='utf-8')
+
+    if args.output_dir:
+        requested = Path(args.output_dir)
+    elif args.contract:
+        requested = Path('.agentic/tasks')
+    else:
+        requested = Path('docs/tasks')
+
+    content = template.replace('TASK-XXX — Название', f'{task_id} — {title}', 1)
+    content = content.replace('EXTERNAL-TASK-REF', resolved_source or 'not applicable', 1)
+    content = content.replace('EXTERNAL-TASK-KIND', resolved_source_kind or 'not applicable', 1)
+    filename = f'{task_id}.md'
+
+    try:
+        output_fd = open_output_dir_fd(target_root, requested)
+        try:
+            exclusive_write_at(output_fd, filename, content)
+        finally:
+            os.close(output_fd)
+    except SafePathError as exc:
+        parser.error(str(exc))
+
+    print((requested / filename).as_posix())
+
+
+if __name__ == '__main__':
+    main()

@@ -1,5 +1,7 @@
 # Стартовый промт для coding agent
 
+> Эта точка входа предназначена для repository, уже настроенного в full profile. Для existing/brownfield repository сначала используйте native agent workflow `/adopt-existing`; если runtime не поддерживает subagents, fallback находится в `ADOPT_EXISTING_PROMPT.md`.
+
 Используй репозиторий как единственный источник долгоживущего контекста проекта.
 
 Сначала прочитай `AGENTS.md`, `docs/INDEX.md`, текущий `ROADMAP.md`, `TODO.md`, архитектурные инварианты и релевантные ADR.

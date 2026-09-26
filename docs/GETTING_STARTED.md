@@ -1,5 +1,8 @@
 # Начало работы с Agentic Repository Engineering Template
 
+> **Этот документ — greenfield/full-profile onboarding для нового проекта.** Если код, Git history, CI, build/test commands, backlog или engineering docs уже существуют, не копируйте этот skeleton поверх проекта: используйте [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md).
+
+
 Эта инструкция предназначена для разработчика, который впервые создаёт проект из шаблона. Она описывает весь путь от пустого нового репозитория до первой завершённой задачи, выполненной AI-агентом и подтверждённой проверками.
 
 Если нужно только вспомнить команды, используйте [`reference/commands.md`](reference/commands.md).

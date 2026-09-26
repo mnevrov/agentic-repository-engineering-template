@@ -1,5 +1,7 @@
 # Пример первого агентского цикла
 
+> Это greenfield/full-profile пример. Existing-project пример находится в [`first-brownfield-cycle.md`](first-brownfield-cycle.md).
+
 Этот пример показывает минимальный практический путь после создания нового проекта из шаблона. Полная инструкция находится в [`../GETTING_STARTED.md`](../GETTING_STARTED.md).
 
 ## Исходное состояние

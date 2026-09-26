@@ -2,7 +2,7 @@
 
 Этот репозиторий использует один и тот же процесс для человека и AI-агента.
 
-Если вы впервые работаете с проектом, сначала прочитайте [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
+Если это новый проект из template, начните с [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md). Для внедрения подхода в уже существующий repository используйте [`docs/ADOPT_EXISTING_REPOSITORY.md`](docs/ADOPT_EXISTING_REPOSITORY.md) и не копируйте этот CONTRIBUTING поверх project-native документации.
 
 ## Перед началом работы
 

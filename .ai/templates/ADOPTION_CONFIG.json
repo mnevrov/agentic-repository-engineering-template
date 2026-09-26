@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "mode": "adoption",
+  "stage": "minimum-context",
+  "source_of_truth_precedence": [
+    "security_and_project_policy",
+    "repository_instructions",
+    "architecture_and_decisions",
+    "current_task_contract",
+    "agent_suggestions",
+    "chat_history"
+  ],
+  "sources": {
+    "instructions": {
+      "primary": "CONTRIBUTING.md",
+      "also_read": []
+    },
+    "architecture": {
+      "status": "partial",
+      "paths": []
+    },
+    "decisions": {
+      "kind": "existing_or_none",
+      "paths": []
+    },
+    "tasks": {
+      "kind": "external",
+      "reference": "TODO: name the existing tracker/backlog",
+      "local_contract_dir": ".agentic/tasks"
+    },
+    "ci": {
+      "status": "existing_or_external",
+      "paths": []
+    }
+  },
+  "verification": {
+    "check": {
+      "status": "not_configured"
+    },
+    "test": {
+      "status": "not_configured"
+    },
+    "integration": {
+      "status": "not_applicable",
+      "reason": "TODO: confirm or replace with the project-specific integration gate"
+    }
+  },
+  "capabilities": {
+    "repeatable_workflow": {
+      "task_contract": {"status": "not_configured"},
+      "acceptance_criteria": {"status": "not_configured"},
+      "evidence": {"status": "not_configured"},
+      "definition_of_done": {"status": "not_configured"}
+    },
+    "independent_verification": {
+      "review_mechanism": {"status": "not_configured"},
+      "exact_sha_diff_evidence": {"status": "not_configured"},
+      "ci_pr_linkage": {"status": "not_configured"}
+    },
+    "risk_aware": {
+      "risk_model": {"status": "not_configured"},
+      "high_risk_gates": {"status": "not_configured"},
+      "adversarial_review": {"status": "not_configured"},
+      "technical_enforcement": {"status": "not_configured"}
+    }
+  },
+  "unresolved_conflicts": [],
+  "open_questions": []
+}
