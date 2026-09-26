@@ -180,6 +180,12 @@ def validate_task_source(
         ok, reason = validate_external_task_source(candidate)
         return ok, reason, 'external' if ok else None, candidate if ok else None
 
+    # In auto mode, HTTP(S)-looking values own their namespace before any
+    # filesystem/file-suffix heuristics. A malformed URL fails closed here.
+    if looks_like_http_reference(candidate):
+        ok, reason = validate_external_task_source(candidate)
+        return ok, reason, 'external' if ok else None, candidate if ok else None
+
     path_text = candidate.partition('#')[0]
     raw = Path(path_text)
     file_like_suffix = raw.suffix.lower() in FILE_LIKE_SUFFIXES

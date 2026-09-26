@@ -1030,6 +1030,41 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertIn('**Тип источника:** local', local_contract)
 
 
+
+    def test_new_task_auto_reserves_http_namespace_before_file_suffixes(self):
+        repo = self.make_repo()
+        valid = (
+            ('https://example.com/task.md', 'TASK-URL-MD'),
+            ('https://example.com/tasks/task.json', 'TASK-URL-JSON'),
+            ('https://example.com/tasks/task.yaml', 'TASK-URL-YAML'),
+        )
+        for source, task_id in valid:
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, task_id, 'Task'
+            ], ROOT)
+            self.assertIn(f'.agentic/tasks/{task_id}.md', proc.stdout)
+            contract = (repo / f'.agentic/tasks/{task_id}.md').read_text(encoding='utf-8')
+            self.assertIn(f'**Источник задачи:** {source}', contract)
+            self.assertIn('**Тип источника:** external', contract)
+
+    def test_new_task_auto_malformed_http_file_suffixes_fail_closed(self):
+        repo = self.make_repo()
+        malformed = (
+            'https://example.com:bad/task.md',
+            'https://example.com:99999/task.json',
+            'https://exa_mple.com/task.yaml',
+            'https://example.com/%ZZ/task.json',
+        )
+        for index, source in enumerate(malformed):
+            proc = run([
+                str(ROOT / 'scripts/new-task'), '--repo', str(repo), '--contract',
+                '--source', source, f'TASK-BAD-URL-{index}', 'Task'
+            ], ROOT, check=False)
+            self.assertNotEqual(proc.returncode, 0, source)
+            self.assertFalse((repo / f'.agentic/tasks/TASK-BAD-URL-{index}.md').exists())
+
+
     def test_adoption_doctor_reports_not_configured_without_calling_repo_broken(self):
         repo = self.make_repo()
         proc = run([str(ROOT / 'scripts/repo-doctor'), '--adoption', '--repo', str(repo)], ROOT, check=False)

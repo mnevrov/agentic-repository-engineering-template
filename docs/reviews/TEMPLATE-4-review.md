@@ -153,3 +153,15 @@ Reviewer reported `P0/P1/P2/P3 = 0/0/1/0`.
 Accepted finding: `new-task --source-kind auto` recognized only a narrow file suffix set, so missing YAML/JSON-like task sources could be reclassified as external IDs; additionally, explicit `local|external` resolution was not persisted in the generated execution contract.
 
 The remediation broadens fail-closed file-like auto detection and persists the resolved source namespace as `Тип источника: local|external`, with regression coverage for missing YAML/YML/JSON/TOML/CSV references and identical raw source strings resolved once as local and once as external.
+
+## Независимый clean-context review — round 8
+
+Exact reviewed HEAD: `919107132b32485d142f5a22bf7a3de9028dc167`.
+
+Verdict: `CHANGES_REQUIRED`.
+
+Reviewer reported `P0/P1/P2/P3 = 0/0/1/0`.
+
+Accepted finding: in `new-task --source-kind auto`, file-like suffix classification ran before HTTP(S) namespace resolution, so valid URLs ending in `.md/.json/.yaml/...` were misclassified as local files and rejected.
+
+The remediation makes HTTP(S)-looking input terminal to strict external validation before any local/file-suffix heuristic, with positive regressions for valid `.md/.json/.yaml` URLs and negative regressions for malformed HTTP(S) values with the same suffixes.
