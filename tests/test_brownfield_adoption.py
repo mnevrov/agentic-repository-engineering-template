@@ -73,6 +73,30 @@ class BrownfieldAdoptionTests(unittest.TestCase):
         self.assertIn('AGENTS.md', {x['path'] for x in report['instructions']})
         self.assertIn('?? AGENTS.md', run(['git', 'status', '--porcelain'], repo).stdout)
 
+    def test_audit_does_not_read_external_makefile_symlink(self):
+        repo = self.make_repo()
+        outside = Path(tempfile.mkdtemp()) / 'external-Makefile'
+        outside.write_text('check:\nexternal_secret_target:\n', encoding='utf-8')
+        (repo / 'Makefile').symlink_to(outside)
+
+        proc = run([str(ROOT / 'scripts/repo-audit'), '--repo', str(repo), '--format', 'json'], ROOT)
+
+        report = json.loads(proc.stdout)
+        commands = {candidate['command'] for candidate in report['verification_candidates']}
+        self.assertNotIn('make check', commands)
+        self.assertNotIn('make external_secret_target', commands)
+
+    def test_audit_reads_repository_local_regular_makefile(self):
+        repo = self.make_repo()
+        (repo / 'Makefile').write_text('check:\ntest:\n', encoding='utf-8')
+
+        proc = run([str(ROOT / 'scripts/repo-audit'), '--repo', str(repo), '--format', 'json'], ROOT)
+
+        report = json.loads(proc.stdout)
+        commands = {candidate['command'] for candidate in report['verification_candidates']}
+        self.assertIn('make check', commands)
+        self.assertIn('make test', commands)
+
     def test_adoption_doctor_does_not_require_template_layout(self):
         repo = self.make_repo()
         config = {

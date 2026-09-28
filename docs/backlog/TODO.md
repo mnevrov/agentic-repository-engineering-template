@@ -17,3 +17,5 @@
 ## Done
 
 - [x] Создан базовый инженерный каркас репозитория.
+- [x] TEMPLATE-5 — сверены post-merge CI/review evidence и подготовлен bounded follow-up для TEMPLATE-4.
+- [x] TEMPLATE-6 — `repo-audit` пропускает чтение symlinked `Makefile`; regression tests и независимый review пройдены.

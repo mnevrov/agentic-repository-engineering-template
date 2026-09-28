@@ -1,6 +1,6 @@
 # TEMPLATE-4 — Brownfield adoption path
 
-**Статус:** in review — final exact-HEAD CI/re-review recorded externally in PR #5  
+**Статус:** merged; symlink finding исправлен и локально независимо перепроверен; exact-head CI ожидает нового commit
 **Риск:** B  
 **Human gate:** required — подтверждён владельцем repository 2026-09-24  
 **Владелец:** repository owner  
@@ -38,7 +38,7 @@
 
 - [x] README явно предлагает greenfield и existing-project onboarding.
 - [x] Есть полноценный brownfield guide и staged adoption model.
-- [x] `repo-audit` выполняет безопасный read-only discovery и не выдаёт candidates за authoritative facts.
+- [x] `repo-audit` выполняет безопасный read-only discovery и не выдаёт candidates за authoritative facts. Finding о symlink escape исправлен и подтверждён в TEMPLATE-6; exact-head CI остаётся отдельным evidence gate ниже.
 - [x] Existing repository не обязан повторять layout template.
 - [x] Existing build/test/CI и tracker можно переиспользовать.
 - [x] Existing AI instructions не перезаписываются tooling.
@@ -49,7 +49,7 @@
 - [x] Greenfield/full template regression подтверждался GitHub CI на implementation HEADs; final review-fix HEAD требует обычного повторного CI.
 - [x] `repo-doctor --adoption` различает ready / not configured / conflict без требования template skeleton.
 - [x] Existing task может получить локальный execution contract без миграции backlog.
-- [ ] Independent clean-context re-review нового exact final HEAD после round-8 fix.
+- [ ] Independent clean-context re-review нового exact final HEAD после round-8 fix без открытого AC-blocking finding.
 
 ## План проверки
 
@@ -79,8 +79,19 @@
 - independent round 6 on `9d38d9b1...`: 1 P1 + 1 P2 findings accepted; remediation prepared for strict percent-encoding and slash-ID/source-kind consistency;
 - independent round 7 on `f426dfbc...`: no P0/P1, one acceptance-blocking P2 accepted; remediation prepared for fail-closed file-like auto classification and persistent source namespace;
 - independent round 8 on `91910713...`: no P0/P1, one acceptance-blocking P2 accepted; remediation prepared to reserve HTTP(S) namespace before file-like auto classification;
-- closure: new exact-HEAD CI and clean-context re-review required;
+- closure: TEMPLATE-6 clean-context review confirms the symlink finding is fixed; new exact-HEAD CI and broader exact-HEAD review remain required;
 - residual risk: provider-specific adapters remain thin adapters; generic process is defined in provider-neutral docs.
+
+## Post-merge status (2026-09-28)
+
+- Merged commit: `ae1e4a6b838c4fce518d6285d327c19b923f49b0`.
+- Локальная проверка этого merge-коммита: `./scripts/repo-doctor --template` — exit 0; `make test-template` — 59 tests, OK; `python3 scripts/validate-telemetry.py` — 21 cycles valid.
+- PR-head GitHub Actions run [`36228392844`](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/36228392844) завершился с conclusion `success` на exact HEAD `d6d93fabd42c3c0d8b0124b7b40d54736f85fbd8`.
+- Post-merge GitHub Actions run [`36229039503`](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/36229039503) проверил exact merge SHA `ae1e4a6b838c4fce518d6285d327c19b923f49b0`; conclusion success.
+- CodeRabbit status `SUCCESS` на PR head означает `Review skipped: manual review required for this OSS repository`; это не независимый review.
+- Independent clean-context review точного merge SHA сохранён в `docs/reviews/TEMPLATE-4-final-review.md`; verdict `changes_required`, P0/P1 нет, P2 по чтению symlinked `Makefile` оставляет AC-3 частично невыполненным. Следующая задача TEMPLATE-6 исправляет этот finding и добавляет regression coverage.
+- TEMPLATE-6 исправляет symlink finding; 61 template tests и `repo-doctor --template` прошли локально, independent review `docs/reviews/TEMPLATE-6-review.md` одобрил текущий scoped diff. GitHub CI на новом commit ещё не запускался.
+- Review также отметил P3: некоторые malformed list-valued поля `repo-doctor` дают traceback вместо structured conflict. Он не блокирует TEMPLATE-4 и не входит в TEMPLATE-6.
 
 ## Traceability
 

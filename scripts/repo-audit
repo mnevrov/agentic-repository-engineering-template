@@ -115,9 +115,10 @@ def detect_verification_candidates(repo: Path, files: set[str]) -> list[dict[str
     if 'scripts/test.sh' in files:
         add('test', './scripts/test.sh', 'scripts/test.sh exists')
 
-    if 'Makefile' in files:
+    makefile = repo / 'Makefile'
+    if 'Makefile' in files and not makefile.is_symlink():
         try:
-            text = (repo / 'Makefile').read_text(encoding='utf-8', errors='replace')
+            text = makefile.read_text(encoding='utf-8', errors='replace')
             targets = set(re.findall(r'^([A-Za-z0-9_.-]+)\s*:(?![=])', text, flags=re.MULTILINE))
             for target, kind in [('check', 'check'), ('lint', 'check'), ('test', 'test'), ('test-integration', 'integration')]:
                 if target in targets:

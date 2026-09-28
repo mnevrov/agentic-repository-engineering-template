@@ -15,4 +15,4 @@ Roadmap хранит **этапы и измеримые выходы**, а не 
 
 ## Главный следующий результат
 
-Опишите один наблюдаемый результат, к которому движется команда.
+Локальное исправление finding TEMPLATE-4 в `repo-audit` завершено через TEMPLATE-6: symlinked `Makefile` не читается, regression tests и clean-context review пройдены. Следующий шаг для закрытия TEMPLATE-4 — зафиксировать согласованный diff и получить CI на новом exact HEAD; затем обновить его итоговый статус. Исходные CI runs на PR head и merge SHA прошли; CodeRabbit skipped-status не является review verdict.
