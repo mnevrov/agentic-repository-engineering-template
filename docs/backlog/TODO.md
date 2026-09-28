@@ -12,7 +12,7 @@
 
 ## Blocked
 
-- нет
+- [ ] TEMPLATE-4 closure — exact-HEAD GitHub CI отложен по запросу владельца; локальные gates и independent final review выполнены.
 
 ## Done
 

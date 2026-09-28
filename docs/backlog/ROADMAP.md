@@ -15,4 +15,4 @@ Roadmap хранит **этапы и измеримые выходы**, а не 
 
 ## Главный следующий результат
 
-Локальное исправление finding TEMPLATE-4 в `repo-audit` завершено через TEMPLATE-6: symlinked `Makefile` не читается, regression tests и clean-context review пройдены. Следующий шаг для закрытия TEMPLATE-4 — зафиксировать согласованный diff и получить CI на новом exact HEAD; затем обновить его итоговый статус. Исходные CI runs на PR head и merge SHA прошли; CodeRabbit skipped-status не является review verdict.
+TEMPLATE-4 локально финализирован: symlinked `Makefile` не читается, regression tests, doctor, telemetry и независимый review прошли на implementation commit. Единственный открытый gate — GitHub CI на exact HEAD; он отложен по запросу владельца и не считается PASS. До его разрешения M0 остаётся локально проверенным, но acceptance-completion незакрыт.

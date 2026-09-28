@@ -60,4 +60,4 @@
 ## Traceability
 
 - `TEMPLATE-4` AC-3 → finding P2 в `TEMPLATE-4-final-review.md` → исправление `scripts/repo-audit` и regression tests.
-- task → evidence/review: локальные gates и `docs/reviews/TEMPLATE-6-review.md`; commit/PR не создавались.
+- task → evidence/review/commit: локальные gates и `docs/reviews/TEMPLATE-6-review.md`; implementation commit `8061409d7dda2127604acc050aebffdf080fae0f`; PR не создавался.

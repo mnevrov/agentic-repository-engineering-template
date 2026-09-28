@@ -1,6 +1,6 @@
 # TEMPLATE-4 — Brownfield adoption path
 
-**Статус:** merged; symlink finding исправлен и локально независимо перепроверен; exact-head CI ожидает нового commit
+**Статус:** implementation локально финализирован; acceptance review заблокирован только exact-HEAD CI, отложенным по запросу владельца
 **Риск:** B  
 **Human gate:** required — подтверждён владельцем repository 2026-09-24  
 **Владелец:** repository owner  
@@ -46,10 +46,11 @@
 - [x] Есть agent/subagent orchestration и `grill-me` skill; fallback prompt не является основным механизмом.
 - [x] Есть brownfield fixture с source/tests/docs/CI/existing task.
 - [x] Есть regression tests критической adoption mechanics.
-- [x] Greenfield/full template regression подтверждался GitHub CI на implementation HEADs; final review-fix HEAD требует обычного повторного CI.
+- [x] Greenfield/full template regression подтверждался GitHub CI на прежних implementation HEADs; результат не распространяется на post-merge review-fix HEAD.
 - [x] `repo-doctor --adoption` различает ready / not configured / conflict без требования template skeleton.
 - [x] Existing task может получить локальный execution contract без миграции backlog.
-- [ ] Independent clean-context re-review нового exact final HEAD после round-8 fix без открытого AC-blocking finding.
+- [x] Independent clean-context re-review exact HEAD `8061409d7dda2127604acc050aebffdf080fae0f` не нашёл открытых P0–P3 по реализации; review artifact: `docs/reviews/TEMPLATE-4-final-review-8061409.md`.
+- [ ] Exact-HEAD GitHub CI после review-fix commit. По прямому запросу владельца в этой финализации GitHub не использовался; локальные gates перечислены ниже и не подменяют удалённый CI.
 
 ## План проверки
 
@@ -57,8 +58,8 @@
 - full regression: `make test-template`;
 - greenfield doctor: `./scripts/repo-doctor --template`;
 - fail-closed gates: существующие template contract tests;
-- GitHub CI exact HEAD;
-- independent CodeRabbit clean-context full review / re-review exact HEAD.
+- exact-HEAD CI (GitHub) — deferred по запросу владельца;
+- independent clean-context final review exact HEAD — выполнен и сохранён в `docs/reviews/TEMPLATE-4-final-review-8061409.md`.
 
 ## Доказательства
 
@@ -79,7 +80,7 @@
 - independent round 6 on `9d38d9b1...`: 1 P1 + 1 P2 findings accepted; remediation prepared for strict percent-encoding and slash-ID/source-kind consistency;
 - independent round 7 on `f426dfbc...`: no P0/P1, one acceptance-blocking P2 accepted; remediation prepared for fail-closed file-like auto classification and persistent source namespace;
 - independent round 8 on `91910713...`: no P0/P1, one acceptance-blocking P2 accepted; remediation prepared to reserve HTTP(S) namespace before file-like auto classification;
-- closure: TEMPLATE-6 clean-context review confirms the symlink finding is fixed; new exact-HEAD CI and broader exact-HEAD review remain required;
+- closure: TEMPLATE-6 и финальный TEMPLATE-4 review подтверждают исправление symlink finding; единственный незакрытый gate — exact-HEAD GitHub CI, deferred по запросу владельца;
 - residual risk: provider-specific adapters remain thin adapters; generic process is defined in provider-neutral docs.
 
 ## Post-merge status (2026-09-28)
@@ -93,8 +94,18 @@
 - TEMPLATE-6 исправляет symlink finding; 61 template tests и `repo-doctor --template` прошли локально, independent review `docs/reviews/TEMPLATE-6-review.md` одобрил текущий scoped diff. GitHub CI на новом commit ещё не запускался.
 - Review также отметил P3: некоторые malformed list-valued поля `repo-doctor` дают traceback вместо structured conflict. Он не блокирует TEMPLATE-4 и не входит в TEMPLATE-6.
 
+## Local finalization (2026-09-28)
+
+- Implementation commit: `8061409d7dda2127604acc050aebffdf080fae0f`.
+- На exact HEAD локально: `make test-template` — 61 tests, OK; `./scripts/repo-doctor --template` — OK; `python3 scripts/validate-telemetry.py` — 25 cycles valid; `git diff HEAD^..HEAD --check` — OK.
+- `make check`, `make test`, `make test-integration` запускались и каждый завершился `NOT CONFIGURED` (exit 2); эти команды не считаются PASS.
+- Independent final review exact HEAD: `docs/reviews/TEMPLATE-4-final-review-8061409.md`, verdict `blocked`, открытых code findings P0–P3 нет.
+- Exact-HEAD GitHub CI не запускался по запросу владельца; TEMPLATE-4 остаётся локально проверенным, но acceptance gate по CI открыт.
+- Closeout telemetry: `TEMPLATE-4-77f42c6b` (`partial`); после записи `python3 scripts/validate-telemetry.py` — 26 cycles valid.
+
 ## Traceability
 
 - owner requirement → TEMPLATE-4;
 - TEMPLATE-4 → brownfield guide/tooling/agents/tests;
 - Task → PR: #5 `feat(adoption): add brownfield repository engineering path`.
+- post-merge remediation → commit `8061409d7dda2127604acc050aebffdf080fae0f`; remote CI deferred and not claimed.
