@@ -10,6 +10,9 @@
 .vscode/
 .DS_Store
 
+# local agent tooling state
+/.serena/
+
 # language/build artifacts
 __pycache__/
 .pytest_cache/
