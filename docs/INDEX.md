@@ -8,6 +8,9 @@
 
 ## Быстрые ссылки
 
+- [`MEETUP.md`](MEETUP.md) — публичная краткая точка входа для участников.
+- [`workshop/STATUS.md`](workshop/STATUS.md) — статус полного demo dry-run и репетиции.
+
 - [`GETTING_STARTED.md`](GETTING_STARTED.md) — новый проект / greenfield.
 - [`ADOPT_EXISTING_REPOSITORY.md`](ADOPT_EXISTING_REPOSITORY.md) — существующий проект / brownfield adoption.
 - [`adoption/GAP_CHECKLIST.md`](adoption/GAP_CHECKLIST.md) — структурированный gap analysis.

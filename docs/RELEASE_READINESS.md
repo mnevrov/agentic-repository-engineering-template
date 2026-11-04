@@ -32,3 +32,5 @@ CI подтверждает работу bootstrap и парсинг OpenCode CL
 7. Получить зелёный exact-head CI и review, затем зафиксировать проверенный release tag.
 
 Неизвестное остаётся неизвестным: отсутствие данных по токенам или стоимости не равно нулю.
+
+Статус демонстрационных материалов и репетиции: [`workshop/STATUS.md`](workshop/STATUS.md). Все outstanding gates отслеживаются в [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9).

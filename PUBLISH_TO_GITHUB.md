@@ -1,82 +1,21 @@
-# Публикация как GitHub Template Repository
+# Публикация и эксплуатационный статус GitHub Template
 
-Целевой публичный адрес для раздачи слушателям:
+Шаблон уже опубликован: https://github.com/mnevrov/agentic-repository-engineering-template
 
-```text
-https://github.com/mnevrov/agentic-repository-engineering-template
-```
+GitHub repository имеет `is_template=true`, поддерживается только OpenCode v2. Сценарий создания нового исходного repository больше не актуален и не должен использоваться.
 
-## Вариант 1 — через GitHub CLI
+## Создание downstream-проекта
 
-Требуется установленный и авторизованный `gh`:
+1. Нажмите **Use this template** в GitHub.
+2. Создайте новый repository и склонируйте его.
+3. Выполните из корня `./scripts/init-project "Название проекта"` ровно один раз.
+4. Выполните `./scripts/repo-doctor --template` и `make test-template`.
+5. Настройте настоящие `make check` / `make test` и запустите `opencode`.
 
-```bash
-gh auth status
-```
+Не используйте `git init` и `gh repo create` внутри уже опубликованного исходного репозитория.
 
-Из корня этого каталога:
+## Release gate
 
-```bash
-git init
-git add -A
-git commit -m "initial template"
+Release candidate — не production release. Сверяйтесь с [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9) и [docs/workshop/STATUS.md](docs/workshop/STATUS.md). До завершения HOST acceptance, независимого review и branch protection новый production tag не выпускайте.
 
-gh repo create mnevrov/agentic-repository-engineering-template \
-  --public \
-  --description "Template repository for controlled AI-agent development cycles" \
-  --source . \
-  --remote origin \
-  --push
-
-gh api -X PATCH repos/mnevrov/agentic-repository-engineering-template \
-  -f is_template=true \
-  -f has_issues=true \
-  -f has_projects=false \
-  -f has_wiki=false
-
-gh repo edit mnevrov/agentic-repository-engineering-template \
-  --add-topic ai-agents \
-  --add-topic repository-template \
-  --add-topic engineering-process \
-  --add-topic adr \
-  --add-topic tdd
-```
-
-После этого на странице репозитория появится кнопка **Use this template**.
-
-## Вариант 2 — через интерфейс GitHub
-
-1. Создайте новый публичный репозиторий `agentic-repository-engineering-template`.
-2. Загрузите содержимое этого каталога в `main`.
-3. Откройте **Settings → General → Template repository**.
-4. Включите флаг **Template repository**.
-5. Отключите Wiki/Projects, если они не нужны.
-6. Добавьте topics: `ai-agents`, `repository-template`, `engineering-process`, `adr`, `tdd`.
-
-## Проверка перед публикацией
-
-```bash
-./scripts/repo-doctor
-make check
-make test
-python scripts/record-cycle.py \
-  --task EXAMPLE-1 \
-  --started 2026-08-20T12:00:00Z \
-  --ended 2026-08-20T12:20:00Z \
-  --result passed \
-  --risk A \
-  --model dry-run \
-  --review-rounds 1 \
-  --evidence docs/tasks/EXAMPLE-1.md
-python scripts/telemetry-summary.py
-```
-
-Если не хотите публиковать демонстрационную запись телеметрии, удалите `.ai/telemetry/cycles.jsonl` перед коммитом.
-
-## QR-код
-
-Файл `docs/workshop/github-template-qr.png` указывает на будущий публичный URL:
-
-```text
-https://github.com/mnevrov/agentic-repository-engineering-template
-```
+Для митапа: [docs/MEETUP.md](docs/MEETUP.md).
