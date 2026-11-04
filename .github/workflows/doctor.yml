@@ -9,7 +9,7 @@ jobs:
   doctor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -96,15 +96,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install pinned OpenCode v2
-        run: npm install --global @opencode/cli@2.2.5
+        run: npm install --global --allow-scripts=@opencode/cli @opencode/cli@2.2.5
       - name: Parse native configuration and discover agents
         shell: bash
         run: |
           set -euo pipefail
           opencode --version
-          opencode debug config > /tmp/opencode-config.txt
-          opencode debug agents > /tmp/opencode-agents.txt
-          grep -q 'reviewer' /tmp/opencode-agents.txt
-          grep -q 'repository-discovery' /tmp/opencode-agents.txt
+          python3 scripts/opencode-acceptance.py

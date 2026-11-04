@@ -1,4 +1,4 @@
-.PHONY: doctor check test test-integration test-template telemetry-check telemetry-summary
+.PHONY: doctor check test test-integration test-template telemetry-check telemetry-summary opencode-acceptance
 
 doctor:
 	./scripts/repo-doctor
@@ -26,3 +26,6 @@ telemetry-check:
 
 telemetry-summary:
 	python3 scripts/telemetry-summary.py
+
+opencode-acceptance:
+	python3 scripts/opencode-acceptance.py
