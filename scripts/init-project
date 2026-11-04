@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import re
+import subprocess
+from pathlib import Path
+
+SOURCE_REPOSITORY = "mnevrov/agentic-repository-engineering-template"
+TEMPLATE_ONLY_FILES = (
+    "PUBLISH_TO_GITHUB.md",
+    "HANDOUT.md",
+    "docs/adr/0000-template.md",
+    "docs/workshop/github-template-qr.png",
+)
+
+
+def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        text=True,
+        capture_output=True,
+    )
+
+
+def source_checkout(root: Path) -> bool:
+    proc = run_git(root, "config", "--get", "remote.origin.url")
+    if proc.returncode != 0:
+        return False
+    url = proc.stdout.strip().lower().rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    source = SOURCE_REPOSITORY.lower()
+    return url.endswith("/" + source) or url.endswith(":" + source)
+
+
+def validate_task_id(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", value):
+        raise argparse.ArgumentTypeError(
+            "bootstrap id must contain only letters, digits, '.', '_' or '-'"
+        )
+    return value
+
+
+def write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+
+def remove(path: Path) -> None:
+    if path.exists():
+        path.unlink()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Initialize a repository created from Agentic Repository Engineering Template."
+    )
+    parser.add_argument("project_name")
+    parser.add_argument("--bootstrap-id", default="PROJECT-BOOTSTRAP", type=validate_task_id)
+    parser.add_argument("--bootstrap-title")
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+
+    root = args.root.resolve()
+    required = [root / "AGENTS.md", root / "Makefile", root / "docs", root / ".ai"]
+    missing = [str(path.relative_to(root)) for path in required if not path.exists()]
+    if missing:
+        raise SystemExit("Not a template checkout; missing: " + ", ".join(missing))
+
+    marker = root / ".ai" / "project-initialized"
+    if marker.exists():
+        raise SystemExit(
+            "Project is already initialized. Refusing destructive repeat run."
+        )
+
+    if source_checkout(root):
+        raise SystemExit(
+            "Refusing to initialize the source template repository. "
+            "Create a repository from the template first."
+        )
+
+    # Refuse symlinked managed directories before any destructive operation.
+    for rel in ("docs", "docs/tasks", "docs/reviews", "docs/architecture", "docs/backlog", "docs/adr", ".ai", ".ai/telemetry"):
+        target = root / rel
+        if target.is_symlink():
+            raise SystemExit(f"Refusing symlinked managed directory: {rel}")
+
+    # Preflight every managed write before any deletion or other mutation.
+    target_files = [
+        root / "README.md",
+        root / "docs/architecture/overview.md",
+        root / "docs/architecture/invariants.md",
+        root / "docs/backlog/ROADMAP.md",
+        root / "docs/backlog/TODO.md",
+        root / "docs/adr/.gitkeep",
+        root / ".ai/telemetry/cycles.jsonl",
+        root / "docs/tasks" / f"{args.bootstrap_id}.md",
+        marker,
+    ]
+    for target in target_files:
+        if target.is_symlink():
+            raise SystemExit(f"Refusing symlinked bootstrap target: {target.relative_to(root)}")
+        if target.is_dir() or (target.parent.exists() and not target.parent.is_dir()):
+            raise SystemExit(f"Refusing non-file bootstrap target: {target.relative_to(root)}")
+    bootstrap_task = root / "docs/tasks" / f"{args.bootstrap_id}.md"
+    if bootstrap_task.exists():
+        raise SystemExit(f"Bootstrap Task already exists: {bootstrap_task.relative_to(root)}")
+
+    # Atomic lease guards against two initializers racing before marker creation.
+    # A failed run intentionally leaves this lock; inspect the partially modified
+    # project before removing it manually.
+    lease = root / ".ai" / "init-project.lock"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(lease, flags, 0o600)
+    except FileExistsError:
+        raise SystemExit("Initialization is already in progress or needs recovery: .ai/init-project.lock")
+    with os.fdopen(fd, "w", encoding="utf-8") as lock:
+        lock.write("Bootstrap in progress; after failure inspect files before removing this lock.\n")
+
+    tasks_dir = root / "docs" / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    for path in tasks_dir.glob("TEMPLATE-*.md"):
+        remove(path)
+    remove(tasks_dir / "EXAMPLE-1.md")
+    reviews_dir = root / "docs" / "reviews"
+    if reviews_dir.exists():
+        for path in reviews_dir.glob("TEMPLATE-*.md"):
+            remove(path)
+
+    for relative in TEMPLATE_ONLY_FILES:
+        remove(root / relative)
+
+    (root / "docs" / "adr").mkdir(parents=True, exist_ok=True)
+    (root / "docs" / "adr" / ".gitkeep").touch()
+
+    telemetry = root / ".ai" / "telemetry" / "cycles.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_text("", encoding="utf-8")
+
+    title = args.bootstrap_title or f"Подготовить {args.project_name} к продуктовой разработке"
+    bootstrap_id = args.bootstrap_id
+
+    write(
+        root / "README.md",
+        f"""# {args.project_name}
+
+Проект создан из Agentic Repository Engineering Template.
+
+## Текущее состояние
+
+Bootstrap ещё не завершён. До feature-разработки необходимо:
+
+- настроить реальные `make check` и `make test`;
+- оставить `make test-integration` fail-closed, пока настоящие integration/e2e проверки не существуют;
+- заполнить архитектуру и проектные инварианты;
+- сформировать ROADMAP/TODO;
+- завершить `{bootstrap_id}` с evidence, independent review и telemetry.
+
+Актуальный контекст проекта находится в `docs/INDEX.md`, `docs/architecture/`,
+`docs/backlog/` и `docs/tasks/`.
+
+## Проверки template tooling
+
+```bash
+./scripts/repo-doctor
+make test-template
+make telemetry-check
+```
+
+Project gates до настройки обязаны возвращать `NOT CONFIGURED` с ненулевым exit code.
+""",
+    )
+
+    write(
+        root / "docs" / "architecture" / "overview.md",
+        f"""# Архитектура {args.project_name}
+
+## Текущее состояние
+
+Project-specific архитектура ещё не описана. Feature-разработка не должна начинаться,
+пока `{bootstrap_id}` не зафиксирует фактические компоненты, потоки данных, trust boundaries
+и разделение текущего/целевого состояния.
+""",
+    )
+
+    write(
+        root / "docs" / "architecture" / "invariants.md",
+        f"""# Архитектурные инварианты {args.project_name}
+
+Project-specific инварианты ещё не определены.
+
+До завершения `{bootstrap_id}` агент не должен придумывать архитектурные ограничения
+или считать будущие правила уже действующими.
+""",
+    )
+
+    write(
+        root / "docs" / "backlog" / "ROADMAP.md",
+        f"""# ROADMAP — {args.project_name}
+
+## M0 — Bootstrap
+
+- настроить реальные project gates;
+- описать архитектуру и инварианты;
+- определить первые измеримые продуктовые итерации.
+
+Следующие milestones добавляются только после фиксации фактического project context.
+""",
+    )
+
+    write(
+        root / "docs" / "backlog" / "TODO.md",
+        f"""# TODO — {args.project_name}
+
+## Ready
+
+- [ ] {bootstrap_id} — {title}
+
+## Planned
+
+- нет
+
+## Done
+
+- нет
+""",
+    )
+
+    write(
+        tasks_dir / f"{bootstrap_id}.md",
+        f"""# {bootstrap_id} — {title}
+
+**Статус:** ready  
+**Риск:** A  
+**Human gate:** delegated  
+**Владелец:** repository owner  
+**Связанный эпик/этап:** bootstrap  
+**Requirements / ADR:** `docs/GETTING_STARTED.md`
+
+## Зачем
+
+Превратить generic template в честный project-specific repository context до feature-разработки.
+
+## Объём
+
+### Входит
+
+- настроить реальные `make check` и `make test`;
+- не делать integration gate зелёным без настоящих integration/e2e tests;
+- описать фактическую архитектуру и инварианты;
+- сформировать ROADMAP/TODO;
+- проверить, что telemetry нового проекта начинается пустой;
+- выполнить repository/tooling checks.
+
+### Не входит
+
+- продуктовые feature-задачи;
+- фиктивные тесты ради зелёного CI;
+- перенос истории разработки самого template в историю проекта.
+
+## Критерии приёмки
+
+- [ ] AC-1: `make check` выполняет реальную проверку проекта и не даёт zero-work PASS.
+- [ ] AC-2: `make test` запускает хотя бы один реальный project test и не даёт zero-test PASS.
+- [ ] AC-3: `make test-integration` остаётся `NOT CONFIGURED`, пока реальные integration/e2e tests отсутствуют.
+- [ ] AC-4: `make test-template` отдельно проверяет reusable template tooling.
+- [ ] AC-5: architecture overview разделяет фактическое и целевое состояние.
+- [ ] AC-6: project-specific invariants зафиксированы.
+- [ ] AC-7: ROADMAP/TODO отражают реальные следующие задачи.
+- [ ] AC-8: `.ai/telemetry/cycles.jsonl` не содержит истории source template.
+- [ ] AC-9: `./scripts/repo-doctor`, `make test-template`, `make telemetry-check` проходят.
+
+## Архитектурные ограничения
+
+- Git repository является источником истины;
+- неизвестные факты не выдумываются;
+- `NOT CONFIGURED` не считается успешной проверкой;
+- source-template history не является project history.
+
+## План проверки
+
+- repository: `./scripts/repo-doctor`;
+- project: `make check`, `make test`;
+- template tooling: `make test-template`;
+- integration: ожидаемый fail-closed до появления настоящих integration tests;
+- telemetry: `make telemetry-check`;
+- ожидаемый evidence level: E2.
+
+## Доказательства
+
+Заполняется после выполнения.
+
+## Review
+
+- self-review:
+- independent review artifact: `docs/reviews/{bootstrap_id}-review.md`
+- остаточные замечания:
+
+## Traceability
+
+- requirements → task: `docs/GETTING_STARTED.md` → `{bootstrap_id}`;
+- task → evidence:
+- task → commit/PR:
+""",
+    )
+
+    write(
+        marker,
+        f"project_name={args.project_name}\nbootstrap_id={bootstrap_id}\n",
+    )
+
+    lease.unlink()
+    print(f"Initialized project: {args.project_name}")
+    print(f"Bootstrap task: docs/tasks/{bootstrap_id}.md")
+    print("Template task history removed and telemetry reset.")
+    print("Next: configure real project gates and complete the bootstrap task.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
