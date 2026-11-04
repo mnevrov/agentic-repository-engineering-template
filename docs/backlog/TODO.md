@@ -8,7 +8,7 @@
 
 ## In progress
 
-- нет
+- [ ] TEMPLATE-8 — production bootstrap and template/product test isolation
 
 ## Blocked
 

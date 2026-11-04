@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@unittest.skipIf((ROOT / '.ai/project-initialized').exists(), 'project owns make check/test after bootstrap')
 class TemplateContractTests(unittest.TestCase):
     def assert_not_configured(self, target: str) -> None:
         proc = subprocess.run(["make", target], cwd=ROOT, text=True, capture_output=True)
