@@ -212,11 +212,13 @@ NOT CONFIGURED: ...
 
 Bootstrap — тоже содержательное изменение repository. Не выполняйте его «вне процесса».
 
-Создайте Task:
+Инициализируйте созданный из template проект — команда создаст bootstrap Task и очистит source telemetry:
 
 ```bash
-./scripts/new-task DEMO-BOOTSTRAP "Подготовить Mini Task Board к продуктовым итерациям"
+./scripts/init-project "Mini Task Board" --bootstrap-id DEMO-BOOTSTRAP --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
 ```
+
+Запускайте `init-project` **ровно один раз**. Если Task уже создана, проверьте маркер `.ai/project-initialized` и не запускайте команду повторно.
 
 Откройте:
 

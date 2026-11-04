@@ -18,4 +18,4 @@
 - [ ] Independent clean-context review and exact PR SHA CI evidence.
 
 ## Evidence
-Pending CI, runtime smoke and independent review. Do not claim live OpenCode acceptance from CI.
+Added downstream GitHub CI smoke to verify one-shot bootstrap on a simulated fresh project. This is controlled CI evidence, not OpenCode host acceptance. Pending CI, runtime smoke and independent review. Do not claim live OpenCode acceptance from CI.

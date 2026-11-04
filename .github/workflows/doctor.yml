@@ -61,3 +61,32 @@ jobs:
             make check
             make test
           fi
+      - name: Downstream greenfield bootstrap smoke (template repository only)
+        if: github.repository == 'mnevrov/agentic-repository-engineering-template'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cp -a . "$work/project"
+          rm -rf "$work/project/.git"
+          git -C "$work/project" init -q
+          git -C "$work/project" config user.email "ci@example.invalid"
+          git -C "$work/project" config user.name "CI"
+          git -C "$work/project" add .
+          git -C "$work/project" commit -qm "Created from template"
+          (
+            cd "$work/project"
+            python3 scripts/init-project "CI downstream"
+            ./scripts/repo-doctor --template
+            make test-template
+            python3 scripts/validate-telemetry.py
+            test -f docs/tasks/PROJECT-BOOTSTRAP.md
+            test ! -e docs/tasks/EXAMPLE-1.md
+            test ! -e docs/reviews/TEMPLATE-7-review.md
+            test ! -s .ai/telemetry/cycles.jsonl
+            if python3 scripts/init-project "CI downstream"; then
+              echo "ERROR: destructive repeat init unexpectedly succeeded" >&2
+              exit 1
+            fi
+          )
