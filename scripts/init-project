@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 SOURCE_REPOSITORY = "mnevrov/agentic-repository-engineering-template"
 TEMPLATE_ONLY_FILES = (
     "PUBLISH_TO_GITHUB.md",
+    "HANDOUT.md",
     "HANDOUT.md",
     "docs/adr/0000-template.md",
     "docs/workshop/github-template-qr.png",
@@ -26,7 +28,11 @@ def source_checkout(root: Path) -> bool:
     proc = run_git(root, "config", "--get", "remote.origin.url")
     if proc.returncode != 0:
         return False
-    return SOURCE_REPOSITORY in proc.stdout.strip()
+    url = proc.stdout.strip().lower().rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    source = SOURCE_REPOSITORY.lower()
+    return url.endswith("/" + source) or url.endswith(":" + source)
 
 
 def validate_task_id(value: str) -> str:
@@ -81,22 +87,38 @@ def main() -> int:
         if target.is_symlink():
             raise SystemExit(f"Refusing symlinked managed directory: {rel}")
 
-    # Refuse write-through to external files and accidental Task ID collisions.
+    # Preflight every managed write before any deletion or other mutation.
     target_files = [
         root / "README.md",
         root / "docs/architecture/overview.md",
         root / "docs/architecture/invariants.md",
         root / "docs/backlog/ROADMAP.md",
         root / "docs/backlog/TODO.md",
+        root / "docs/adr/.gitkeep",
+        root / ".ai/telemetry/cycles.jsonl",
         root / "docs/tasks" / f"{args.bootstrap_id}.md",
         marker,
     ]
     for target in target_files:
         if target.is_symlink():
             raise SystemExit(f"Refusing symlinked bootstrap target: {target.relative_to(root)}")
+        if target.is_dir() or (target.parent.exists() and not target.parent.is_dir()):
+            raise SystemExit(f"Refusing non-file bootstrap target: {target.relative_to(root)}")
     bootstrap_task = root / "docs/tasks" / f"{args.bootstrap_id}.md"
     if bootstrap_task.exists():
         raise SystemExit(f"Bootstrap Task already exists: {bootstrap_task.relative_to(root)}")
+
+    # Atomic lease guards against two initializers racing before marker creation.
+    # A failed run intentionally leaves this lock; inspect the partially modified
+    # project before removing it manually.
+    lease = root / ".ai" / "init-project.lock"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(lease, flags, 0o600)
+    except FileExistsError:
+        raise SystemExit("Initialization is already in progress or needs recovery: .ai/init-project.lock")
+    with os.fdopen(fd, "w", encoding="utf-8") as lock:
+        lock.write("Bootstrap in progress; after failure inspect files before removing this lock.\n")
 
     tasks_dir = root / "docs" / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -290,6 +312,7 @@ Project-specific инварианты ещё не определены.
         f"project_name={args.project_name}\nbootstrap_id={bootstrap_id}\n",
     )
 
+    lease.unlink()
     print(f"Initialized project: {args.project_name}")
     print(f"Bootstrap task: docs/tasks/{bootstrap_id}.md")
     print("Template task history removed and telemetry reset.")
