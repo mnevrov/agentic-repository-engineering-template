@@ -1,7 +1,6 @@
 ---
-name: Grill Me
-description: Use when a workflow has a blocking ambiguity that cannot be resolved from repository evidence. Ask the minimum high-value questions needed for source-of-truth, scope, verification, safety, or policy decisions; never ask for discoverable facts.
-allowed-tools: Read, Grep, Glob
+name: grill-me
+description: "Use when a workflow has a blocking ambiguity that cannot be resolved from repository evidence. Ask the minimum high-value questions needed for source-of-truth, scope, verification, safety, or policy decisions; never ask for discoverable facts."
 ---
 
 # Grill Me
