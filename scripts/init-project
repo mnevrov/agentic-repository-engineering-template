@@ -60,11 +60,6 @@ def main() -> int:
     parser.add_argument("--bootstrap-id", default="PROJECT-BOOTSTRAP", type=validate_task_id)
     parser.add_argument("--bootstrap-title")
     parser.add_argument("--root", type=Path, default=Path.cwd())
-    parser.add_argument(
-        "--allow-source",
-        action="store_true",
-        help="allow destructive initialization in the source template checkout",
-    )
     args = parser.parse_args()
 
     root = args.root.resolve()
@@ -79,7 +74,7 @@ def main() -> int:
             "Project is already initialized. Refusing destructive repeat run."
         )
 
-    if source_checkout(root) and not args.allow_source:
+    if source_checkout(root):
         raise SystemExit(
             "Refusing to initialize the source template repository. "
             "Create a repository from the template first."
@@ -90,6 +85,27 @@ def main() -> int:
         target = root / rel
         if target.is_symlink():
             raise SystemExit(f"Refusing symlinked managed directory: {rel}")
+
+    # Preflight every managed write before any deletion or other mutation.
+    target_files = [
+        root / "README.md",
+        root / "docs/architecture/overview.md",
+        root / "docs/architecture/invariants.md",
+        root / "docs/backlog/ROADMAP.md",
+        root / "docs/backlog/TODO.md",
+        root / "docs/adr/.gitkeep",
+        root / ".ai/telemetry/cycles.jsonl",
+        root / "docs/tasks" / f"{args.bootstrap_id}.md",
+        marker,
+    ]
+    for target in target_files:
+        if target.is_symlink():
+            raise SystemExit(f"Refusing symlinked bootstrap target: {target.relative_to(root)}")
+        if target.is_dir() or (target.parent.exists() and not target.parent.is_dir()):
+            raise SystemExit(f"Refusing non-file bootstrap target: {target.relative_to(root)}")
+    bootstrap_task = root / "docs/tasks" / f"{args.bootstrap_id}.md"
+    if bootstrap_task.exists():
+        raise SystemExit(f"Bootstrap Task already exists: {bootstrap_task.relative_to(root)}")
 
     # Atomic lease guards against two initializers racing before marker creation.
     # A failed run intentionally leaves this lock; inspect the partially modified
