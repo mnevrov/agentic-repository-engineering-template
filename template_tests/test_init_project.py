@@ -70,6 +70,41 @@ class InitProjectTests(unittest.TestCase):
             self.assertNotIn("EXAMPLE-1", todo)
             self.assertTrue((root / ".ai/project-initialized").exists())
 
+    def test_source_origin_suffix_is_not_false_positive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.make_fixture(root)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "remote", "add", "origin",
+                            "https://github.com/mnevrov/agentic-repository-engineering-template-demo.git"],
+                           cwd=root, check=True)
+            proc = subprocess.run(["python3", str(SCRIPT), "Demo", "--root", str(root)],
+                                  text=True, capture_output=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+
+    def test_existing_lock_prevents_any_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.make_fixture(root)
+            lock = root / ".ai/init-project.lock"
+            lock.write_text("preexisting", encoding="utf-8")
+            proc = subprocess.run(["python3", str(SCRIPT), "Project", "--root", str(root)],
+                                  text=True, capture_output=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+            self.assertEqual((root / ".ai/telemetry/cycles.jsonl").read_text(), "template-history\n")
+
+    def test_bad_output_directory_stops_before_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.make_fixture(root)
+            (root / "docs/architecture/overview.md").mkdir(parents=True)
+            proc = subprocess.run(["python3", str(SCRIPT), "Project", "--root", str(root)],
+                                  text=True, capture_output=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("non-file bootstrap target", proc.stderr + proc.stdout)
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
     def test_initializer_refuses_accidental_second_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

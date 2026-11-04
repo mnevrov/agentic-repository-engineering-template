@@ -18,6 +18,7 @@ test-integration:
 	@exit 2
 
 test-template:
+	@test ! -L template_tests || { echo 'NOT CONFIGURED: symlinked template_tests is unsupported' >&2; exit 2; }
 	@find template_tests -maxdepth 1 -type f -name 'test_*.py' 2>/dev/null | grep -q . || { echo 'NOT CONFIGURED: template_tests are missing' >&2; exit 2; }
 	python3 -m unittest discover -s template_tests -p 'test_*.py'
 

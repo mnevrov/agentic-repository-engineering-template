@@ -180,7 +180,7 @@ def template_mode(repo: Path) -> int:
         failed = True
 
     state = subprocess.run(
-        ['python3', str(repo / 'scripts/check-task-state.py'), '--root', str(repo)],
+        ['python3', str(Path(__file__).resolve().parent / 'check-task-state.py'), '--root', str(repo)],
         text=True, capture_output=True,
     )
     if state.returncode:

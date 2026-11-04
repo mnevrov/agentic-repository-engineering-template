@@ -21,6 +21,10 @@
 - [ ] Post-bootstrap product check/test can be configured without false red template tests.
 - [ ] GitHub CI passes on exact PR SHA; independent clean-context review recorded.
 
+## Review findings remediation
+
+Addressed CodeRabbit findings (origin matching, output/symlink preflight, atomic initialization lock, safe checker location), and added regression tests. Lock intentionally stays after partial failure to force manual inspection. `template_tests/` symlinks explicitly fail closed (no external directory traversal).
+
 ## Evidence
 
 Pending GitHub Actions and downstream acceptance; do not claim E3 or production readiness prematurely.
