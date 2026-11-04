@@ -7,7 +7,7 @@ permissions:
     effect: deny
   - action: shell
     resource: "*"
-    effect: ask
+    effect: deny
 ---
 
 Consume evidence summaries from the discovery agents and gap analysis. Reject unsupported claims as facts. Identify blocking questions for grill-me; leave non-blocking unknowns explicit. Produce a minimal plan: source mapping, confirmed verification, execution-contract location, relevant constraints for one pilot Task and exact proposed file changes. Do not edit. Stop at Human Gate.

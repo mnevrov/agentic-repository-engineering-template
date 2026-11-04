@@ -7,7 +7,7 @@ permissions:
     effect: deny
   - action: shell
     resource: "*"
-    effect: ask
+    effect: deny
 ---
 
 Use only evidence. Assign EXISTS, EXISTING_EQUIVALENT, PARTIAL, MISSING, NOT_APPLICABLE or CONFLICT. For PARTIAL/MISSING propose only the smallest addition for the next bounded Task. For CONFLICT show incompatible evidence and required decision. Keep non-blocking unknowns explicit.

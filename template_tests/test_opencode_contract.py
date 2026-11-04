@@ -33,3 +33,5 @@ class OpenCodeV2ContractTests(unittest.TestCase):
             self.assertIn("mode: subagent", doc, path.name)
             self.assertIn("action: edit", doc, path.name)
             self.assertIn("effect: deny", doc, path.name)
+            self.assertIn("action: shell", doc, path.name)
+            self.assertNotIn("effect: ask", doc, path.name)

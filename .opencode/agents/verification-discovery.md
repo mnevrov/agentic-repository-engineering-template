@@ -7,7 +7,7 @@ permissions:
     effect: deny
   - action: shell
     resource: "*"
-    effect: ask
+    effect: deny
 ---
 
 Inspect contributor docs, scripts, build definitions and CI. Report each verification command, evidence path, CI use and confidence. Never infer authority from convention alone. Conflicts go to the orchestrator/grill-me. Do not edit files.

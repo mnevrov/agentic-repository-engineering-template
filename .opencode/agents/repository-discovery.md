@@ -7,7 +7,7 @@ permissions:
     effect: deny
   - action: shell
     resource: "*"
-    effect: ask
+    effect: deny
 ---
 
 Map the existing repository read-only. Verify audit signals by reading relevant files. Return topology, build/language markers, test-related paths, CI and docs evidence with paths and fact/candidate/unknown labels. Do not propose migration, edit files, require template layout, or infer architecture from naming.
