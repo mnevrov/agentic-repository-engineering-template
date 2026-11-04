@@ -39,6 +39,31 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertEqual((root / ".ai/telemetry/cycles.jsonl").read_text(encoding="utf-8"), "source-history")
             self.assertFalse((root / ".ai/project-initialized").exists())
 
+    def test_rejects_symlink_bootstrap_file_without_overwriting_external_data(self):
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home) / "project"
+            root.mkdir()
+            self.fixture(root)
+            outside = Path(home) / "sensitive.txt"
+            outside.write_text("protected", encoding="utf-8")
+            (root / "README.md").symlink_to(outside)
+            proc = self.run_init(root)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Refusing symlinked bootstrap target", proc.stderr + proc.stdout)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "protected")
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
+    def test_refuses_existing_bootstrap_task_before_deleting_template_data(self):
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home)
+            self.fixture(root)
+            (root / "docs/tasks/PROJECT-BOOTSTRAP.md").write_text("keep me", encoding="utf-8")
+            proc = self.run_init(root)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Bootstrap Task already exists", proc.stdout + proc.stderr)
+            self.assertEqual((root / "docs/tasks/PROJECT-BOOTSTRAP.md").read_text(encoding="utf-8"), "keep me")
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
     def test_refuses_to_initialize_source_repository_checkout(self):
         with tempfile.TemporaryDirectory() as home:
             root = Path(home)

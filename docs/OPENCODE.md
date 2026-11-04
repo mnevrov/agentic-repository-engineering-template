@@ -25,6 +25,8 @@ opencode
 
 Первый шаг в OpenCode: `/develop` для `PROJECT-BOOTSTRAP`. Реальные `make check` и `make test` должны быть настроены до пользовательских задач. `NOT CONFIGURED` означает блокировку, а не успех.
 
+Для CI-проверки парсинга нативной конфигурации используется закреплённый `@opencode/cli@2.2.5`, без model credentials и inference. Этот шаг **не** подтверждает реальную работу модели или Human Gate.
+
 ## Production acceptance
 
 1. `opencode --version` подтверждает установленный V2.

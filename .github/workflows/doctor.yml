@@ -90,3 +90,21 @@ jobs:
               exit 1
             fi
           )
+
+  opencode_v2_config:
+    if: github.repository == 'mnevrov/agentic-repository-engineering-template'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned OpenCode v2
+        run: npm install --global @opencode/cli@2.2.5
+      - name: Parse native configuration and discover agents
+        shell: bash
+        run: |
+          set -euo pipefail
+          opencode --version
+          opencode debug config > /tmp/opencode-config.txt
+          opencode debug agents > /tmp/opencode-agents.txt
+          grep -q 'reviewer' /tmp/opencode-agents.txt
+          grep -q 'repository-discovery' /tmp/opencode-agents.txt
