@@ -60,3 +60,7 @@
 ## OpenCode v2
 
 - [`OPENCODE.md`](OPENCODE.md) — единственный поддерживаемый runtime, команды/skills/subagents, политика доступа и проверка работоспособности.
+
+## Release readiness
+
+- [`RELEASE_READINESS.md`](RELEASE_READINESS.md) — статусы технических и HOST/модельных gate для OpenCode-only шаблона.
