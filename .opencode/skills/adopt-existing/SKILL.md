@@ -1,7 +1,6 @@
 ---
-name: Adopt Existing Repository
-description: Use to introduce repository engineering into an existing/brownfield project. Orchestrates specialized read-only subagents, uses grill-me for unresolved human decisions, proposes the minimum adoption plan, and stops at a Human Gate before any repository modification.
-allowed-tools: Read, Grep, Glob, Bash
+name: adopt-existing
+description: "Use to introduce repository engineering into an existing/brownfield project. Orchestrates specialized read-only subagents, uses grill-me for unresolved human decisions, proposes the minimum adoption plan, and stops at a Human Gate before any repository modification."
 ---
 
 # Adopt Existing Repository

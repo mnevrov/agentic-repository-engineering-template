@@ -9,6 +9,7 @@ SOURCE_REPOSITORY = "mnevrov/agentic-repository-engineering-template"
 TEMPLATE_ONLY_FILES = (
     "PUBLISH_TO_GITHUB.md",
     "HANDOUT.md",
+    "HANDOUT.md",
     "docs/adr/0000-template.md",
     "docs/workshop/github-template-qr.png",
 )

@@ -1,10 +1,12 @@
 # AGENTS.md
 
+Единственная поддерживаемая агентная среда — **OpenCode v2**. Используй нативные команды `.opencode/commands/`, навыки `.opencode/skills/` и read-only subagents `.opencode/agents/`. Не полагайся на настройки Claude Code или Codex. Провайдер и модель задаются окружением пользователя (например, внутренний LiteLLM), а не этим шаблоном.
+
 Этот репозиторий разрабатывается короткими проверяемыми циклами.
 
 ## Brownfield adoption
 
-Этот файл — default contract для repository, созданного из template. **Не копируй и не перезаписывай им существующий `AGENTS.md`/AI instructions brownfield-проекта.** Для existing repository сначала следуй `docs/ADOPT_EXISTING_REPOSITORY.md`, используй read-only discovery subagents и `grill-me` для blocking ambiguities, затем добавляй только согласованный minimal layer.
+Этот файл — default contract для repository, созданного из template. **Не копируй и не перезаписывай им существующий `AGENTS.md`/AI instructions brownfield-проекта.** Для existing repository сначала следуй `docs/ADOPT_EXISTING_REPOSITORY.md`, используй native OpenCode read-only discovery subagents и `grill-me` для blocking ambiguities, затем добавляй только согласованный minimal layer.
 
 ## Перед любой задачей
 

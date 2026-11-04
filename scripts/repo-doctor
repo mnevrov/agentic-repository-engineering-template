@@ -12,14 +12,17 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 TEMPLATE_REQUIRED = [
-    'AGENTS.md', 'CLAUDE.md', 'docs/INDEX.md', 'docs/architecture/overview.md',
+    'AGENTS.md', 'opencode.json', '.opencode/commands/develop.md',
+    '.opencode/commands/iterate.md', '.opencode/agents/reviewer.md',
+    '.opencode/skills/adopt-existing/SKILL.md', '.opencode/skills/grill-me/SKILL.md',
+    'docs/INDEX.md', 'docs/architecture/overview.md',
     'docs/architecture/invariants.md', 'docs/backlog/ROADMAP.md', 'docs/backlog/TODO.md',
     'docs/process/development-cycle.md', 'docs/process/code-review.md',
     'docs/process/definition-of-done.md', 'docs/process/evidence-ladder.md',
     'docs/process/traceability.md', 'docs/process/telemetry.md', '.ai/templates/TASK.md',
     '.ai/templates/REVIEW.md', '.ai/schemas/cycle.schema.json',
     'scripts/check-telemetry-append-only.py', 'scripts/check-telemetry-required.py',
-    'scripts/init-project', 'scripts/check-task-state.py',
+    'scripts/init-project', 'scripts/check-task-state.py', 'scripts/opencode-acceptance.py',
 ]
 SECRET_PATTERNS = [
     re.compile(rb'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'),

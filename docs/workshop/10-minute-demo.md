@@ -39,7 +39,7 @@
 
 ## 4:00–6:00 — Рабочий цикл
 
-Покажите `docs/process/development-cycle.md` или `.claude/commands/develop.md`.
+Покажите `docs/process/development-cycle.md` или `.opencode/commands/develop.md`.
 
 Сфокусируйтесь только на цепочке:
 

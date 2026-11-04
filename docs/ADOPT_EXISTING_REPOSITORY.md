@@ -28,7 +28,7 @@ python3 /tmp/agentic-repository-template/scripts/repo-audit --repo . > /tmp/agen
 4. **Gap Analysis** — `EXISTS / EXISTING_EQUIVALENT / PARTIAL / MISSING / NOT_APPLICABLE / CONFLICT`.
 5. **Adoption Orchestrator** — минимальный plan и Human Gate.
 
-Claude Code adapter находится в `.claude/agents/`, orchestration skill — `/adopt-existing`, questioning skill — `/grill-me`. [`ADOPT_EXISTING_PROMPT.md`](../ADOPT_EXISTING_PROMPT.md) — только fallback для runtimes без subagents.
+Нативные OpenCode v2 agents находятся в `.opencode/agents/`, skills — в `.opencode/skills/`. В самом template доступны `/adopt-existing` и `/grill-me`. Для существующего проекта сначала используйте read-only audit и [`ADOPT_EXISTING_PROMPT.md`](../ADOPT_EXISTING_PROMPT.md), затем согласуйте минимальную установку OpenCode-native adapter; не копируйте template tree целиком.
 
 ## Когда спрашивать человека
 

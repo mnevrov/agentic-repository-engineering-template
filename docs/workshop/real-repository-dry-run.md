@@ -118,16 +118,7 @@ make --version
 
 Рекомендуется Python 3.11+.
 
-Также должен быть установлен хотя бы один coding agent:
-
-- OpenCode;
-- Codex CLI;
-- Claude Code;
-- другой агент, способный читать и менять файлы Git repository.
-
-Для контрольного прогона лучше использовать **тот же инструмент, который планируется показывать команде**.
-
-Если на выступлении предполагается OpenCode — полный dry-run также лучше сделать через OpenCode.
+Должен быть установлен **OpenCode v2**. Для контрольного прогона используйте именно его, с тем же корпоративным провайдером, который будет применяться на митапе.
 
 ---
 
@@ -221,11 +212,13 @@ NOT CONFIGURED: ...
 
 Bootstrap — тоже содержательное изменение repository. Не выполняйте его «вне процесса».
 
-Создайте Task:
+Инициализируйте созданный из template проект — команда создаст bootstrap Task и очистит source telemetry:
 
 ```bash
-./scripts/new-task DEMO-BOOTSTRAP "Подготовить Mini Task Board к продуктовым итерациям"
+./scripts/init-project "Mini Task Board" --bootstrap-id DEMO-BOOTSTRAP --bootstrap-title "Подготовить Mini Task Board к продуктовым итерациям"
 ```
+
+Запускайте `init-project` **ровно один раз**. Если Task уже создана, проверьте маркер `.ai/project-initialized` и не запускайте команду повторно.
 
 Откройте:
 

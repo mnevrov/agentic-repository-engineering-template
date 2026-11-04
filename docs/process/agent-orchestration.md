@@ -22,6 +22,6 @@ Brownfield discovery не должен выполняться одним дли�
 
 Не делегируйте один exact-file lookup или маленькую последовательную проверку. Subagents нужны для независимых workstreams, isolated context и independent verification.
 
-## Provider neutrality
+## OpenCode v2 native orchestration
 
-`.claude/agents/` и `.claude/skills/` — native adapter для Claude Code. Другие harnesses должны реализовать те же role boundaries своими agent primitives. `ADOPT_EXISTING_PROMPT.md` — fallback, когда subagents отсутствуют.
+`.opencode/agents/`, `.opencode/skills/` и `.opencode/commands/` — единственные поддерживаемые адаптеры. Конфигурация не закрепляет модель или провайдера. `ADOPT_EXISTING_PROMPT.md` используется для начального read-only этапа в существующем репозитории до добавления минимального OpenCode layer.
