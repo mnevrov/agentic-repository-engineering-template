@@ -58,10 +58,10 @@ class BootstrapSafetyTests(unittest.TestCase):
             (root / ".ai/project-initialized").write_text("project initialized", encoding="utf-8")
             shutil.copy2(ROOT / "template_tests/test_template_contract.py", root / "template_tests/test_template_contract.py")
             (root / "Makefile").write_text(
-                ".PHONY: check test test-template\\n"
-                "check:\\n\\t@echo real-check\\n"
-                "test:\\n\\t@echo real-test\\n"
-                "test-template:\\n\\tpython3 -m unittest discover -s template_tests -p 'test_*.py'\\n",
+                ".PHONY: check test test-template\n"
+                "check:\n\t@echo real-check\n"
+                "test:\n\t@echo real-test\n"
+                "test-template:\n\tpython3 -m unittest discover -s template_tests -p 'test_*.py'\n",
                 encoding="utf-8",
             )
             proc = subprocess.run(["make", "test-template"], cwd=root, text=True, capture_output=True)
