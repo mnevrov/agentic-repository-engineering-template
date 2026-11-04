@@ -14,6 +14,9 @@ class InitProjectTests(unittest.TestCase):
             "AGENTS.md",
             "Makefile",
             "PUBLISH_TO_GITHUB.md",
+            "HANDOUT.md",
+            "docs/MEETUP.md",
+            "docs/workshop/STATUS.md",
             "docs/adr/0000-template.md",
             "docs/workshop/github-template-qr.png",
             "docs/tasks/TEMPLATE-1.md",
@@ -53,6 +56,9 @@ class InitProjectTests(unittest.TestCase):
             self.assertFalse((root / "docs/tasks/EXAMPLE-1.md").exists())
             self.assertTrue((root / "docs/tasks/KEEP-1.md").exists())
             self.assertFalse((root / "PUBLISH_TO_GITHUB.md").exists())
+            self.assertFalse((root / "HANDOUT.md").exists())
+            self.assertFalse((root / "docs/MEETUP.md").exists())
+            self.assertFalse((root / "docs/workshop/STATUS.md").exists())
             self.assertFalse((root / "docs/adr/0000-template.md").exists())
             self.assertFalse((root / "docs/workshop/github-template-qr.png").exists())
             self.assertEqual((root / ".ai/telemetry/cycles.jsonl").read_text(), "")
