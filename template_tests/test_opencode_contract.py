@@ -12,7 +12,7 @@ class OpenCodeV2ContractTests(unittest.TestCase):
         for name in ("develop", "iterate", "adopt-existing", "grill-me"):
             path = ROOT / ".opencode" / "commands" / f"{name}.md"
             self.assertTrue(path.is_file(), name)
-            self.assertTrue(path.read_text(encoding="utf-8").startswith("---\\n"), name)
+            self.assertTrue(path.read_text(encoding="utf-8").startswith("---\n"), name)
             self.assertIn("description:", path.read_text(encoding="utf-8"), name)
         for name in ("adopt-existing", "grill-me"):
             path = ROOT / ".opencode" / "skills" / name / "SKILL.md"

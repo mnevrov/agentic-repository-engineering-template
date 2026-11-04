@@ -195,24 +195,16 @@ python3 scripts/check-telemetry-required.py --base-ref <git-ref>
 
 В telemetry-enabled profile содержательное изменение требует новую telemetry row. Brownfield Stage 1 может отложить эту policy; см. [`../process/telemetry.md`](../process/telemetry.md).
 
-## Запуск AI-инструмента
+## Команды OpenCode v2
 
-Из корня репозитория, если соответствующий CLI установлен:
+Запускайте `opencode` из корня репозитория. В новом проекте выполните `./scripts/init-project "Название проекта"` **до** продуктовой разработки.
 
-```bash
-opencode
-codex
-claude
-```
+- `/develop` — одна bounded Task с AC, проверками, review и evidence.
+- `/iterate` — одна небольшая архитектурная итерация.
+- `/adopt-existing` — read-only discovery и staged Brownfield adoption.
+- `/grill-me` — устранение только блокирующих неоднозначностей.
 
-После запуска используйте `START_PROMPT.md`.
-
-Для Claude Code:
-
-```text
-/develop
-/iterate
-```
+Политика runtime — `opencode.json`, subagents/commands/skills — `.opencode/`. Провайдер не закреплён. Подробнее: [OpenCode](../OPENCODE.md).
 
 ## Перед commit
 

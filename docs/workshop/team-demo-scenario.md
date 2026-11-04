@@ -127,7 +127,7 @@ DEMO-4 — добавить фильтр и счётчики
 
 Лучше всего проводить live **DEMO-2 — создание задачи**, потому что изменение небольшое, визуально заметное и содержит негативный сценарий проверки.
 
-Начните новую сессию OpenCode/Codex CLI/Claude Code из корня demo repository.
+Начните новую сессию OpenCode v2 из корня demo repository.
 
 Минимальный prompt:
 
@@ -380,7 +380,7 @@ tail -4 .ai/telemetry/cycles.jsonl
 
 - подробно читать весь `AGENTS.md`;
 - объяснять JSON Schema telemetry;
-- демонстрировать установку OpenCode/Codex/Claude;
+- демонстрировать установку OpenCode;
 - проводить live adversarial review;
 - выбирать модель по benchmark;
 - показывать большой реальный корпоративный репозиторий;
