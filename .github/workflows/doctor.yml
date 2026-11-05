@@ -92,16 +92,34 @@ jobs:
           )
 
   opencode_v2_config:
+    name: OpenCode v${{ matrix.opencode_version }} configuration
+    strategy:
+      fail-fast: false
+      matrix:
+        opencode_version: ["2.1.2", "2.2.5"]
     if: github.repository == 'mnevrov/agentic-repository-engineering-template'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: Install pinned OpenCode v2
-        run: npm install --global --allow-scripts=@opencode/cli @opencode/cli@2.2.5
-      - name: Parse native configuration and discover agents
+        run: npm install --global --allow-scripts=@opencode/cli @opencode/cli@${{ matrix.opencode_version }}
+      - name: Parse native configuration and discover agents (supported CLI)
+        if: matrix.opencode_version == '2.2.5'
         shell: bash
         run: |
           set -euo pipefail
           opencode --version
           python3 scripts/opencode-acceptance.py
+      - name: Ensure v2.1.2 is rejected as unsupported (negative compatibility test)
+        if: matrix.opencode_version == '2.1.2'
+        shell: bash
+        run: |
+          set -euo pipefail
+          opencode --version
+          if python3 scripts/opencode-acceptance.py > /tmp/rejected-cli.log; then
+            echo "ERROR: known-incompatible CLI unexpectedly accepted" >&2
+            exit 1
+          fi
+          grep -q 'v2.2.5 or newer required' /tmp/rejected-cli.log
+          echo "PASS: OpenCode v2.1.2 correctly rejected by acceptance contract"

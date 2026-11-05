@@ -1,6 +1,6 @@
 # OpenCode v2 — operational contract
 
-Этот template поддерживает **только OpenCode v2**. Сверка формата с официальной документацией: https://dev.opencode.ai/v2/docs/config/ , https://dev.opencode.ai/v2/docs/agents/ , https://dev.opencode.ai/v2/docs/commands/ , https://dev.opencode.ai/v2/docs/skills/ .
+Этот template поддерживает **только OpenCode v2**. Минимальная проверенная версия: **OpenCode v2.2.5**. Версия v2.1.2 не загружает проектных агентов на чистом CI, хотя проектные источники конфигурации обнаружены; приёмка намеренно завершается ошибкой до обновления. Сверка формата с официальной документацией: https://dev.opencode.ai/v2/docs/config/ , https://dev.opencode.ai/v2/docs/agents/ , https://dev.opencode.ai/v2/docs/commands/ , https://dev.opencode.ai/v2/docs/skills/ .
 
 ## Источники конфигурации
 
@@ -25,7 +25,7 @@ opencode
 
 Первый шаг в OpenCode: `/develop` для `PROJECT-BOOTSTRAP`. Реальные `make check` и `make test` должны быть настроены до пользовательских задач. `NOT CONFIGURED` означает блокировку, а не успех.
 
-Для CI-проверки парсинга нативной конфигурации используется закреплённый `@opencode/cli@2.2.5`, без model credentials и inference. Этот шаг **не** подтверждает реальную работу модели или Human Gate.
+Для CI используется матрица: `@opencode/cli@2.1.2` как **ожидаемое отклонение** несовместимой версии и `@opencode/cli@2.2.5` как поддерживаемый успешный проход, без model credentials и inference. Этот шаг **не** подтверждает реальную работу модели или Human Gate.
 
 ## Локальная проверка без обращения к модели
 
@@ -33,7 +33,7 @@ opencode
 make opencode-acceptance
 ```
 
-Проверяется установленный OpenCode v2, конфигурация и обнаружение subagents без вывода конфигурации провайдера. Не путайте с подключённой приёмкой LiteLLM.
+Проверяется установленный OpenCode v2, конфигурация и точные **ID** subagents без вывода конфигурации провайдера. CLI вывод перенаправляется во временные regular files, так как OpenCode/Bun может обрезать большие JSON-потоки при pipe; они удаляются при завершении проверки. Не путайте с подключённой приёмкой LiteLLM.
 
 
 ## Если `make opencode-acceptance` не видит subagents
@@ -72,3 +72,27 @@ make opencode-acceptance
 ## Безопасность
 
 V2 permissions отличаются от V1 (`permissions`, `shell`, `subagent`). Порядок правил значим: поздние правила переопределяют ранние. Изменение model/provider и расширение разрешений должны рассматриваться как отдельная Task. Не запускайте `--auto` для high-risk изменений без политик, принудительно запрещающих нежелательные операции.
+
+## Версия 2.1.2: обнаружение агентов не проходит
+
+На GitHub Actions (2026-11-05) проверка из этого репозитория нашла: с OpenCode 2.1.2 все три требуемых project agent ID отсутствуют; с 2.2.5 они присутствуют. Это воспроизведено с прямым перенаправлением полного CLI JSON в файл, без проблем pipe truncation. Поэтому версия **2.1.2 не поддерживается** для production acceptance. Обновите CLI до проверенной версии:
+
+```bash
+opencode upgrade 2.2.5
+opencode --version
+opencode service stop
+opencode service start
+make opencode-acceptance
+```
+
+Проверяйте фактически установленную версию после обновления; при управляемой корпоративной установке согласуйте обновление с администратором.
+
+## Большой JSON в `opencode debug agents`
+
+Если `opencode debug agents | python3 -c '...json.load(...)'` или `| jq` даёт `JSONDecodeError` приблизительно на 64/128/192 КиБ, это может быть известная upstream проблема асинхронной записи stdout в pipe: https://github.com/anomalyco/opencode/issues/29330 . Подтверждайте без передачи prompt/credentials:
+
+```bash
+make opencode-acceptance
+```
+
+Скрипт использует временный regular file, парсит JSON целиком и проверяет `id` агентов, а не вхождение имени в описания. Не сохраняйте и не публикуйте сырой JSON: в нём может быть содержимое системных инструкций.
