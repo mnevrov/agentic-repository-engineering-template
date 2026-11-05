@@ -5,6 +5,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
+from telemetry_cutover import bootstrap_cutover
+
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
 
 
@@ -41,6 +43,8 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
 
     old = telemetry_lines_at_ref(repo, base_ref)
     new = telemetry_lines_now(repo)
+    if bootstrap_cutover(repo, base_ref, old, new):
+        old = []  # Project's first ledger starts after dropping source-only history.
     appended = len(new) - len(old)
     if appended <= 0:
         return False, f"substantive change without appended telemetry: {len(substantive)} changed file(s)"

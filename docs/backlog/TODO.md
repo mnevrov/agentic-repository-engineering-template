@@ -8,6 +8,8 @@
 
 ## In progress
 
+- [ ] TEMPLATE-12 — safe one-time downstream telemetry bootstrap cutover
+
 - [ ] TEMPLATE-11 — diagnose OpenCode background-service project config discovery
 
 - [ ] TEMPLATE-8 — production bootstrap and template/product test isolation

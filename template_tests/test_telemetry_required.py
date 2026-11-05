@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import importlib.util
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "check-telemetry-required.py"
+sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("telemetry_required", SCRIPT)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
