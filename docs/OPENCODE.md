@@ -35,6 +35,31 @@ make opencode-acceptance
 
 Проверяется установленный OpenCode v2, конфигурация и обнаружение subagents без вывода конфигурации провайдера. Не путайте с подключённой приёмкой LiteLLM.
 
+
+## Если `make opencode-acceptance` не видит subagents
+
+Если тесты шаблона проходят, а `reviewer`, `repository-discovery` и другие проектные агенты отсутствуют в выводе `opencode debug agents`, сначала проверьте **загрузку проектной конфигурации**. Путь `.opencode/agents/` корректен для V2; не переносите файлы в глобальную конфигурацию без необходимости.
+
+Из корня репозитория:
+
+```bash
+opencode --version
+printenv OPENCODE_DISABLE_PROJECT_CONFIG
+opencode debug agents
+```
+
+Если `OPENCODE_DISABLE_PROJECT_CONFIG=1`, удалите настройку из shell startup / launcher и выполните `unset OPENCODE_DISABLE_PROJECT_CONFIG`. **Важно:** фоновый сервис наследует переменные среды при старте, поэтому очистки текущей shell может быть недостаточно. Завершите активные сессии OpenCode перед перезапуском:
+
+```bash
+opencode service stop
+opencode service start
+make opencode-acceptance
+```
+
+Если переменная не установлена, проблема всё равно может быть в окружении уже запущенного сервиса или в глобальных переопределениях. Просмотрите пути источников в `opencode debug config` **локально**, не пересылайте его полный вывод: там может оказаться конфигурация с секретами. Проверьте отсутствие `OPENCODE_DISABLE_PROJECT_CONFIG` в systemd/launcher/editor окружении; после исправления перезапустите сервис. Сопоставимый подтверждённый случай: https://github.com/anomalyco/opencode/issues/53839 .
+
+**Не считать PASS** до появления всех ожидаемых project agents. При отсутствии реальной проверки в корпоративном HOST не повышать evidence до E3/E4.
+
 ## Production acceptance
 
 1. `opencode --version` подтверждает установленный V2.
