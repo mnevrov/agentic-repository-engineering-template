@@ -95,8 +95,16 @@ def check(cli: str) -> list[str]:
             errors.append("missing skill: " + name)
 
     ok, version = command(cli, "--version")
-    if not ok or not re.search(r"\bv?2\.\d+", version):
+    match = re.search(r"\bv?(\d+)\.(\d+)\.(\d+)\b", version) if ok else None
+    if match is None or int(match.group(1)) != 2:
         errors.append("OpenCode CLI missing or not v2")
+        return errors
+    installed = tuple(map(int, match.groups()))
+    if installed < (2, 2, 5):
+        errors.append(
+            "OpenCode v2.2.5 or newer required: v2.1.2 failed project-agent "
+            "discovery on clean GitHub CI; upgrade OpenCode and restart its service"
+        )
         return errors
     config_ok, sources = command(cli, "debug", "config")
     if not config_ok:

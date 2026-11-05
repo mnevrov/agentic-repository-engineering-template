@@ -10,7 +10,8 @@
 - `make opencode-acceptance`: missing `reviewer`, `repository-discovery`, `adoption-orchestrator`.
 - HOST (2026-11-05): OpenCode **v2.1.2**; neither `OPENCODE_DISABLE_PROJECT_CONFIG` nor `OPENCODE_CONFIG_PROJECT_DISABLE` is set; Git tracks `.opencode/agents/repository-discovery.md`.
 - HOST: `opencode debug config` confirms project `opencode.json` and `.opencode` sources are loaded.
-- HOST: `opencode debug agents | python3 -c 'json.load(...)'` fails at line 7359, char 196405; probable known large-output pipe truncation in OpenCode CLI. This is not proof the agent is absent.
+- HOST: `opencode debug agents | python3 -c 'json.load(...)'` fails at line 7359, char 196405; upstream known large-output pipe truncation.
+- CI: OpenCode **2.1.2** fails all three exact agent IDs even when captured into a regular file; OpenCode **2.2.5** passes. This is a genuine version-compatibility issue distinct from pipe truncation.
 
 ## Scope
 
@@ -22,7 +23,7 @@
 
 ## Acceptance
 
-- [ ] Existing and new tests PASS (including fake pipe-truncation reproduction).
+- [ ] Existing and new tests PASS (including fake pipe-truncation reproduction and old-version rejection).
 - [ ] Exact-head GitHub CI PASS.
 - [ ] Independent review completed.
 - [ ] Real HOST OpenCode subagents discovered (separate local acceptance).
@@ -30,3 +31,7 @@
 ## Evidence
 
 User-provided HOST JSON parse failure confirmed; exact OpenCode CLI source v2.1.2 uses `process.stdout.write(JSON.stringify(...))`; upstream https://github.com/anomalyco/opencode/issues/29330 documents pipe truncation and file-redirect workaround. Real user rerun on patched `main` remains required.
+
+## Version policy
+
+OpenCode **2.2.5** is the minimum verified version; 2.1.2 explicitly rejected by acceptance. Do not duplicate Markdown agent definitions into global provider config to work around legacy discovery. Final real HOST verification still pending.

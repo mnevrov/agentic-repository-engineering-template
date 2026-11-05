@@ -12,7 +12,7 @@ ALL = ("reviewer", "repository-discovery", "adoption-orchestrator")
 
 
 class OpenCodeAcceptanceTests(unittest.TestCase):
-    def run_cli(self, *, version="opencode v2.1.2", agents=ALL,
+    def run_cli(self, *, version="opencode v2.2.5", agents=ALL,
                 sources=None, disable=None, huge=False, corrupt=False,
                 misleading=False, truncate_pipe=False):
         if sources is None:
@@ -61,6 +61,12 @@ class OpenCodeAcceptanceTests(unittest.TestCase):
         p = self.run_cli()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("no model request", p.stdout)
+
+    def test_v2_1_2_rejected_with_actionable_version_requirement(self):
+        p = self.run_cli(version="opencode v2.1.2")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("v2.2.5 or newer required", p.stdout)
+        self.assertIn("upgrade OpenCode", p.stdout)
 
     def test_v1_rejected(self):
         p = self.run_cli(version="opencode v1.19.2")
