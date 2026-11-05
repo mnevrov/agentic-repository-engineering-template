@@ -8,6 +8,8 @@
 
 ## In progress
 
+- [ ] TEMPLATE-11 — diagnose OpenCode background-service project config discovery
+
 - [ ] TEMPLATE-8 — production bootstrap and template/product test isolation
 - [ ] TEMPLATE-9 — native OpenCode v2 workflow and documentation migration
 - [ ] TEMPLATE-10 — OpenCode-only public onboarding and meetup status
