@@ -1,40 +1,37 @@
-# Release readiness — OpenCode v2
+# Release readiness — OpenCode v2 template
 
-**Статус: RELEASE CANDIDATE; выпуск в production не подтверждён.**
+**Статус: STABILIZATION. Production release v0.1.0 ещё не одобрен.**
 
-Этот репозиторий — шаблон инженерного процесса, а не автономный оркестратор. Поддерживается только OpenCode v2, а модель/провайдер задаются доверенным окружением пользователя.
+Технический CI, отчёт владельца о HOST/Pilot и независимый release-review — разные уровни доказательств.
 
-## Технические проверки
+## Матрица gate-evidence на 2026-11-05
 
-| Критерий | Способ проверки | Статус |
+| Критерий | Доказательство | Статус |
 |---|---|---|
-| Fail-closed project gates и template tests | GitHub Actions Repository Doctor | Автоматизировано |
-| Отдельный bootstrap и защита от повторного запуска | Downstream greenfield smoke | Автоматизировано |
-| Нативная OpenCode v2 конфигурация и discovery | Pinned CLI GitHub Actions | Автоматизировано |
-| OpenCode CLI на целевом хосте | make opencode-acceptance | PASS по сообщению владельца (2026-11-05) |
-| Реальный полный цикл с внутренней моделью LiteLLM | Одна bounded Task, new-session recovery | Локальный /develop PROJECT-BOOTSTRAP выполнен по отчёту владельца (E2); CI и new-session recovery ещё не подтверждены |
-| Независимый review exact final PR HEAD | Сохранённый review artifact | Ожидается |
-| Обязательные CI/review для main | GitHub branch rules | Не настроено через текущий доступ |
-| Версионированный production release | GitHub tag/release после всех gate | Не создан |
+| Исходный template doctor/tests | [exact main CI 42014455431](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42014455431), SHA `42559fa4` | PASS до стабилизационного PR; повторить на final SHA |
+| Bootstrap и first telemetry cutover | PR #13 + downstream smoke в source CI | PASS, синтетический downstream |
+| OpenCode v2.2.5 agents / v2.1.2 reject | PR #12 + матрица CI | PASS |
+| OpenCode HOST acceptance | `make opencode-acceptance` | PASS по отчёту владельца |
+| Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; через коннектор Pilot сейчас 404 |
+| Pilot PR и post-merge Actions | [run 42023246757](https://github.com/mnevrov/agentic-template/actions/runs/42023246757), [run 42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100), merge `c23cbbb9c51d2a988a233373882d0b2d512afebf` | PASS по отчёту владельца, не независимо проверено |
+| Integration/e2e на Pilot | `make test-integration` | **NOT CONFIGURED, rc=2** — fail-closed, не PASS |
+| Final independent review точного release SHA | artifact / reviewer verdict | **BLOCKED** |
+| Защита main | GitHub branch query | **BLOCKED**: `protected=false`; rulesets пусты; GitHub connector не может писать branch rules |
+| Версионированный v0.1.0 | tag/release | **NOT CREATED** |
 
-## Граница доказательств
+**Уровни evidence:** E1 — static; E2 — unit/contract; E3 — integration/e2e; E4 — target/prod-like; E5 — эксплуатационное повторение. Один факт green CI **не** повышает unit-tests до E3.
 
-CI подтверждает работу bootstrap и парсинг OpenCode CLI без запроса к модели. Это не E4, не доказательство доступа к корпоративному LiteLLM и не подтверждение фактического Human Gate в OpenCode.
+## Релизные действия (требуют доказательств)
 
-## Ручной HOST acceptance
+1. Получить PASS на exact final SHA `main` (doctor, telemetry, OpenCode v2 matrix, downstream smoke). Сохранить SHA и Actions URLs.
+2. Запустить независимое ревью **в новой чистой сессии**, передав final SHA, полный diff с `61e96b...`, Task/AC, фактические CI-результаты, архитектурные инварианты, diff конфигураций OpenCode и прав, bootstrap + telemetry security. Сохранить `docs/reviews/RELEASE-0.1.0-final-review.md` с verdict и P0/P1/P2/P3. Самопроверка автора не считается независимой.
+3. Настроить для `main` GitHub Branch Protection или Ruleset: PR перед merge, required checks `doctor`, `OpenCode v2.1.2 configuration`, `OpenCode v2.2.5 configuration`, запрет force push и удаления. Независимый approve на PR — при наличии доступного второго reviewer; для solo-owner явно фиксировать невозможность и обеспечить внешний review как ручной gate.
+4. Повторно проверить защиту через GitHub UI/API и статус Checks после настройки. Нельзя считать правила настроенными только потому, что документ описывает их.
+5. Только после final review, зелёного final-main CI и branch rules — создать **новый** release tag `v0.1.0` на одобренном SHA и GitHub Release. Старую ветку `release/v0.1.0-rc.1` не переписывать.
 
-1. Создать отдельный новый GitHub repository из шаблона.
-2. Выполнить scripts/init-project один раз и убедиться, что повтор заблокирован.
-3. Выполнить make opencode-acceptance без логирования токенов.
-4. Настроить real make check и make test (no zero-test green).
-5. Провести через OpenCode /develop для bootstrap Task с внутренней моделью.
-6. Проверить независимый reviewer, AC/evidence/telemetry, начало новой сессии и восстановление Git-контекста.
-7. Получить зелёный exact-head CI и review, затем зафиксировать проверенный release tag.
+## Ограничения
 
-Неизвестное остаётся неизвестным: отсутствие данных по токенам или стоимости не равно нулю.
-
-Статус демонстрационных материалов и репетиции: [`workshop/STATUS.md`](workshop/STATUS.md). Все outstanding gates отслеживаются в [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9).
-
-## Pilot PROJECT-BOOTSTRAP — наблюдения 2026-11-05
-
-Владелец сообщил об успешном выполнении локальной задачи через OpenCode, итоговый короткий SHA `aadec1f` в отдельном непубликованном Pilot-репозитории, 9/9 AC, 7 unit-тестах, независимом reviewer с 0 P0 / 0 P1 и устранёнными P2 (без повторного clean-context ревью), а также записи `PROJECT-BOOTSTRAP-90a430d0`. Принято как пользовательский HOST отчёт уровня E2, а не независимый факт GitHub CI. Конкретный маршрут внутренней модели, проверка восстановления контекста в новой сессии и E3/E4 остаются открытыми. Перенос bootstrap telemetry в downstream требует исправления TEMPLATE-12.
+- Отдельная meetup-репетиция с DEMO-1…DEMO-4, QR/ссылками и таймингом не выполнена и отслеживается в [workshop/STATUS.md](workshop/STATUS.md); это **другой** acceptance gate.
+- Модельный путь LiteLLM, конкретный provider и токены/стоимость не подтверждены логами этого инструмента; нет основания заявлять E4/E5.
+- Старые telemetry-циклы `partial` не редактируются задним числом. Технически выполненные TEMPLATE-4 и TEMPLATE-8…12 заблокированы на **финальном release approval**, а не на переписывании истории.
+- [Журнал релизного решения — issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9).

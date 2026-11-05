@@ -7,6 +7,7 @@ SECTION_STATUS = {
     "ready": "ready",
     "in progress": "in progress",
     "planned": "planned",
+    "blocked": "blocked",
     "done": "done",
 }
 TASK_LINE = re.compile(r"^- \[[ xX]\]\s+([A-Za-z0-9][A-Za-z0-9_.-]*)\s+[—-]\s+")
