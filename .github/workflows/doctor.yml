@@ -1,5 +1,9 @@
 name: Repository Doctor
 
+# Run pull_request code without a write-capable GITHUB_TOKEN.
+permissions:
+  contents: read
+
 on:
   pull_request:
   push:
@@ -8,6 +12,7 @@ on:
 jobs:
   doctor:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
