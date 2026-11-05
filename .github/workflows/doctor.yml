@@ -78,6 +78,9 @@ jobs:
           git -C "$work/project" init -q
           git -C "$work/project" config user.email "ci@example.invalid"
           git -C "$work/project" config user.name "CI"
+          # Provenance identity is mandatory for the cutover exception;
+          # a CI-only throwaway repository must present its own hosted origin.
+          git -C "$work/project" remote add origin "https://github.com/example/ci-downstream-smoke.git"
           git -C "$work/project" add .
           git -C "$work/project" commit -qm "Created from template"
           (
@@ -140,5 +143,9 @@ jobs:
             echo "ERROR: known-incompatible CLI unexpectedly accepted" >&2
             exit 1
           fi
+          # Deliberate string coupling: this exact phrase is part of the
+          # rejection contract asserted by scripts/opencode-acceptance.py and
+          # template_tests/test_opencode_acceptance.py. Rewording the message
+          # must update this gate in the same commit.
           grep -q 'v2.2.5 or newer required' /tmp/rejected-cli.log
           echo "PASS: OpenCode v2.1.2 correctly rejected by acceptance contract"

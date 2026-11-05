@@ -27,6 +27,18 @@ class OpenCodeV2ContractTests(unittest.TestCase):
         self.assertIn({"action": "shell", "resource": "git push --force*", "effect": "deny"}, rules)
         self.assertIn({"action": "shell", "resource": "git reset --hard *", "effect": "deny"}, rules)
 
+    def test_shell_allow_rules_have_no_wildcard_prefix(self):
+        # A wildcard allow is a prefix allow: chained commands such as
+        # 'git diff HEAD && <arbitrary>' would inherit it and never reach the
+        # deny rules. Only exact, operator-free commands may be allowed.
+        config = json.loads((ROOT / "opencode.json").read_text(encoding="utf-8"))
+        for rule in config["permissions"]:
+            if rule["action"] == "shell" and rule["effect"] == "allow":
+                resource = rule["resource"]
+                self.assertNotIn("*", resource, resource)
+                for separator in ("&&", ";", "|", "\n"):
+                    self.assertNotIn(separator, resource, resource)
+
     def test_read_only_subagents(self):
         for path in (ROOT / ".opencode/agents").glob("*.md"):
             doc = path.read_text(encoding="utf-8")

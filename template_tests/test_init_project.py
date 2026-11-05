@@ -28,6 +28,16 @@ class InitProjectTests(unittest.TestCase):
             target = root / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("template-history\n", encoding="utf-8")
+        (root / "docs" / "INDEX.md").write_text(
+            "# Индекс проектной памяти\n"
+            "\n"
+            "- [`MEETUP.md`](MEETUP.md) — точка входа.\n"
+            "- [`workshop/STATUS.md`](workshop/STATUS.md) — статус dry-run.\n"
+            "- [`GETTING_STARTED.md`](GETTING_STARTED.md) — новый проект.\n"
+            "- корневой: `PUBLISH_TO_GITHUB.md` и `HANDOUT.md`\n"
+            "- [`architecture/overview.md`](architecture/overview.md) — архитектура.\n",
+            encoding="utf-8",
+        )
 
     def test_initializer_removes_source_history_and_creates_bootstrap_context(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,6 +85,12 @@ class InitProjectTests(unittest.TestCase):
             self.assertIn("DEMO-BOOTSTRAP", todo)
             self.assertNotIn("EXAMPLE-1", todo)
             self.assertTrue((root / ".ai/project-initialized").exists())
+
+            index = (root / "docs" / "INDEX.md").read_text(encoding="utf-8")
+            for dead in ("MEETUP.md", "workshop/STATUS.md", "PUBLISH_TO_GITHUB.md", "HANDOUT.md"):
+                self.assertNotIn(dead, index)
+            for kept in ("GETTING_STARTED.md", "architecture/overview.md"):
+                self.assertIn(kept, index)
 
     def test_source_origin_suffix_is_not_false_positive(self):
         with tempfile.TemporaryDirectory() as tmp:

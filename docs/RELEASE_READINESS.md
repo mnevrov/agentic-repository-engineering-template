@@ -10,6 +10,7 @@
 |---|---|---|
 | Исходный template doctor/tests | [exact main CI 42014455431](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42014455431), SHA `42559fa4` | PASS до стабилизационного PR; повторить на final SHA |
 | Bootstrap и first telemetry cutover | PR #13 + downstream smoke в source CI | PASS, синтетический downstream |
+| Release audit P1 (telemetry provenance bypass) | PoC аудитора + provenance-bound cutover, `TEMPLATE-15` / ADR-0001 | В восстановлении: fix в PR, exact-head CI pending |
 | OpenCode v2.2.5 agents / v2.1.2 reject | PR #12 + матрица CI | PASS |
 | OpenCode HOST acceptance | `make opencode-acceptance` | PASS по отчёту владельца |
 | Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; через коннектор Pilot сейчас 404 |

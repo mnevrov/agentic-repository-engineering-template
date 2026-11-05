@@ -16,5 +16,12 @@ class WorkflowSecurityTests(unittest.TestCase):
             r"(?m)^  doctor:\s*\n    runs-on: ubuntu-latest\s*\n    timeout-minutes: 20",
         )
 
+    def test_no_job_level_permissions_escalation(self):
+        # Job-level 'permissions:' blocks can widen the read-only workflow
+        # token after the fact; their absence must be asserted, not just the
+        # presence of the workflow-level restriction.
+        content = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotRegex(content, r"(?m)^\s{2,}permissions:\s*$|^\s{2,}permissions:\s*\S")
+
 if __name__ == "__main__":
     unittest.main()

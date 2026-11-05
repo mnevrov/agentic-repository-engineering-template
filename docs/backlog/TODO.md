@@ -8,6 +8,7 @@
 
 ## In progress
 
+- [ ] TEMPLATE-15 — remediation of independent release audit findings (P1 telemetry provenance, P2/P3).
 - [ ] TEMPLATE-14 — least-privilege CI and exact SHA release-review evidence.
 - [ ] TEMPLATE-13 — стабилизация release-evidence и статусов с тестированием Blocked.
 

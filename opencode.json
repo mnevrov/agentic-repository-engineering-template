@@ -28,32 +28,37 @@
     },
     {
       "action": "shell",
-      "resource": "git status *",
+      "resource": "git status",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "git diff *",
+      "resource": "git diff",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "git log *",
+      "resource": "git log",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "make test-template *",
+      "resource": "make test-template",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "make check *",
+      "resource": "make check",
       "effect": "allow"
     },
     {
       "action": "shell",
-      "resource": "make test *",
+      "resource": "make test",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "make telemetry-check",
       "effect": "allow"
     },
     {
