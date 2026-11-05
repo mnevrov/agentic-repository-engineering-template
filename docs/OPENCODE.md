@@ -25,7 +25,7 @@ opencode
 
 Первый шаг в OpenCode: `/develop` для `PROJECT-BOOTSTRAP`. Реальные `make check` и `make test` должны быть настроены до пользовательских задач. `NOT CONFIGURED` означает блокировку, а не успех.
 
-Для CI-проверки парсинга нативной конфигурации используется закреплённый `@opencode/cli@2.2.5`, без model credentials и inference. Этот шаг **не** подтверждает реальную работу модели или Human Gate.
+Для CI-проверки парсинга нативной конфигурации используется матрица `@opencode/cli@2.1.2` и `@opencode/cli@2.2.5`, без model credentials и inference. Этот шаг **не** подтверждает реальную работу модели или Human Gate.
 
 ## Локальная проверка без обращения к модели
 
@@ -33,7 +33,7 @@ opencode
 make opencode-acceptance
 ```
 
-Проверяется установленный OpenCode v2, конфигурация и обнаружение subagents без вывода конфигурации провайдера. Не путайте с подключённой приёмкой LiteLLM.
+Проверяется установленный OpenCode v2, конфигурация и точные **ID** subagents без вывода конфигурации провайдера. CLI вывод перенаправляется во временные regular files, так как OpenCode/Bun может обрезать большие JSON-потоки при pipe; они удаляются при завершении проверки. Не путайте с подключённой приёмкой LiteLLM.
 
 
 ## Если `make opencode-acceptance` не видит subagents
@@ -72,3 +72,13 @@ make opencode-acceptance
 ## Безопасность
 
 V2 permissions отличаются от V1 (`permissions`, `shell`, `subagent`). Порядок правил значим: поздние правила переопределяют ранние. Изменение model/provider и расширение разрешений должны рассматриваться как отдельная Task. Не запускайте `--auto` для high-risk изменений без политик, принудительно запрещающих нежелательные операции.
+
+## Большой JSON в `opencode debug agents`
+
+Если `opencode debug agents | python3 -c '...json.load(...)'` или `| jq` даёт `JSONDecodeError` приблизительно на 64/128/192 КиБ, это может быть известная upstream проблема асинхронной записи stdout в pipe: https://github.com/anomalyco/opencode/issues/29330 . Подтверждайте без передачи prompt/credentials:
+
+```bash
+make opencode-acceptance
+```
+
+Скрипт использует временный regular file, парсит JSON целиком и проверяет `id` агентов, а не вхождение имени в описания. Не сохраняйте и не публикуйте сырой JSON: в нём может быть содержимое системных инструкций.
