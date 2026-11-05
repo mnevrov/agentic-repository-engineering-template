@@ -1,6 +1,6 @@
 # TEMPLATE-8 — Production bootstrap and template/product test isolation
 
-**Статус:** in progress
+**Статус:** blocked
 **Риск:** B
 **Human gate:** delegated by repository owner (2026-11-05)
 **Источник:** production readiness for OpenCode-only usage
@@ -28,3 +28,9 @@ Addressed CodeRabbit findings (origin matching, output/symlink preflight, atomic
 ## Evidence
 
 Pending GitHub Actions and downstream acceptance; do not claim E3 or production readiness prematurely.
+
+## Stabilization evidence update (2026-11-05)
+
+**Технический scope реализован:** source-template exact-main CI [42014455431](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42014455431) — PASS (включая template tests, doctor и pinned OpenCode matrix). Owner reports successful downstream HOST Pilot and post-merge run [42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100) at merge SHA `c23cbbb9c51d2a988a233373882d0b2d512afebf`; этот Pilot недоступен для независимой проверки через коннектор (404). Исторические описания pending — снимок того периода, их не выдавать за текущие события.
+
+**Открытый релизный gate:** независимый review точного финального release SHA, защитные правила main; для TEMPLATE-10 пользовательская проверка QR/meetup остаётся отдельной. Не менять исторические telemetry rows и не объявлять historical independent review, которого не было.

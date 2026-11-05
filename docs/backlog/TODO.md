@@ -1,28 +1,29 @@
-# TODO — ближайшая очередь
+# TODO — исходный шаблон
 
-Держите здесь только ближайшие небольшие задачи. Большие идеи должны сначала стать этапом/эпиком и быть декомпозированы.
+Состояния source-template задач. Downstream-проект после `init-project` получает собственный TODO. Раздел `Blocked` проверяется `check-task-state.py`.
 
 ## Ready
 
-- [ ] EXAMPLE-1 — заменить демонстрационные команды `Makefile` командами вашего проекта.
+Нет новых реализационных задач без финального release review.
 
 ## In progress
 
-- [ ] TEMPLATE-12 — safe one-time downstream telemetry bootstrap cutover
-
-- [ ] TEMPLATE-11 — diagnose OpenCode background-service project config discovery
-
-- [ ] TEMPLATE-8 — production bootstrap and template/product test isolation
-- [ ] TEMPLATE-9 — native OpenCode v2 workflow and documentation migration
-- [ ] TEMPLATE-10 — OpenCode-only public onboarding and meetup status
+- [ ] TEMPLATE-13 — стабилизация release-evidence и статусов с тестированием Blocked.
 
 ## Blocked
 
-- [ ] TEMPLATE-4 closure — exact-HEAD GitHub CI отложен по запросу владельца; локальные gates и independent final review выполнены.
+- [ ] TEMPLATE-4 — историческая CI-задолженность по старому SHA; итоговый release review остаётся обязательным.
+- [ ] TEMPLATE-8 — bootstrap и разделение тестов реализованы, final release review отсутствует.
+- [ ] TEMPLATE-9 — OpenCode v2-only workflow реализован, final release review отсутствует.
+- [ ] TEMPLATE-10 — public onboarding реализован, final release review отсутствует.
+- [ ] TEMPLATE-11 — HOST discovery пройден по отчёту владельца, final release review отсутствует.
+- [ ] TEMPLATE-12 — telemetry cutover пройден в CI/пилоте, final release review отсутствует.
 
 ## Done
 
 - [x] Создан базовый инженерный каркас репозитория.
-- [x] TEMPLATE-5 — сверены post-merge CI/review evidence и подготовлен bounded follow-up для TEMPLATE-4.
-- [x] TEMPLATE-6 — `repo-audit` пропускает чтение symlinked `Makefile`; regression tests и независимый review пройдены.
-- [x] TEMPLATE-7 — локальный `.serena/` workspace исключён root `.gitignore`; README не требовал обновления.
+- [x] TEMPLATE-5 — сверка GitHub evidence и bounded follow-up.
+- [x] TEMPLATE-6 — symlinked Makefile guard + regression/review.
+- [x] TEMPLATE-7 — локальный .serena исключён из Git.
+
+`EXAMPLE-1` — только демонстрационный task в source template; `init-project` удаляет его из downstream. Он не является активной задачей самого шаблона.

@@ -70,6 +70,23 @@ class TaskStateTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("TODO expects 'ready'", proc.stdout + proc.stderr)
 
+    def test_blocked_section_is_validated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            todo = root / "docs" / "backlog" / "TODO.md"
+            todo.parent.mkdir(parents=True, exist_ok=True)
+            todo.write_text(
+                "# TODO\n\n## Blocked\n- [ ] TASK-X — awaiting independent review\n",
+                encoding="utf-8",
+            )
+            self.write_task(root, "TASK-X", "blocked")
+            ok = self.run_check(root)
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+            self.write_task(root, "TASK-X", "in progress")
+            failed = self.run_check(root)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("expects 'blocked'", failed.stdout + failed.stderr)
+
     def test_missing_task_file_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
