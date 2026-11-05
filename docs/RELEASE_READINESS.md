@@ -11,8 +11,8 @@
 | Fail-closed project gates и template tests | GitHub Actions Repository Doctor | Автоматизировано |
 | Отдельный bootstrap и защита от повторного запуска | Downstream greenfield smoke | Автоматизировано |
 | Нативная OpenCode v2 конфигурация и discovery | Pinned CLI GitHub Actions | Автоматизировано |
-| OpenCode CLI на целевом хосте | make opencode-acceptance | Не проверено на HOST |
-| Реальный полный цикл с внутренней моделью LiteLLM | Одна bounded Task, new-session recovery | Не проверено на HOST |
+| OpenCode CLI на целевом хосте | make opencode-acceptance | PASS по сообщению владельца (2026-11-05) |
+| Реальный полный цикл с внутренней моделью LiteLLM | Одна bounded Task, new-session recovery | Локальный /develop PROJECT-BOOTSTRAP выполнен по отчёту владельца (E2); CI и new-session recovery ещё не подтверждены |
 | Независимый review exact final PR HEAD | Сохранённый review artifact | Ожидается |
 | Обязательные CI/review для main | GitHub branch rules | Не настроено через текущий доступ |
 | Версионированный production release | GitHub tag/release после всех gate | Не создан |
@@ -34,3 +34,7 @@ CI подтверждает работу bootstrap и парсинг OpenCode CL
 Неизвестное остаётся неизвестным: отсутствие данных по токенам или стоимости не равно нулю.
 
 Статус демонстрационных материалов и репетиции: [`workshop/STATUS.md`](workshop/STATUS.md). Все outstanding gates отслеживаются в [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9).
+
+## Pilot PROJECT-BOOTSTRAP — наблюдения 2026-11-05
+
+Владелец сообщил об успешном выполнении локальной задачи через OpenCode, итоговый короткий SHA `aadec1f` в отдельном непубликованном Pilot-репозитории, 9/9 AC, 7 unit-тестах, независимом reviewer с 0 P0 / 0 P1 и устранёнными P2 (без повторного clean-context ревью), а также записи `PROJECT-BOOTSTRAP-90a430d0`. Принято как пользовательский HOST отчёт уровня E2, а не независимый факт GitHub CI. Конкретный маршрут внутренней модели, проверка восстановления контекста в новой сессии и E3/E4 остаются открытыми. Перенос bootstrap telemetry в downstream требует исправления TEMPLATE-12.

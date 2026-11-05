@@ -85,6 +85,20 @@ jobs:
             test ! -e docs/tasks/EXAMPLE-1.md
             test ! -e docs/reviews/TEMPLATE-7-review.md
             test ! -s .ai/telemetry/cycles.jsonl
+            # First project commit exercises BOTH telemetry checks against
+            # the inherited source-template baseline. This is CI-only smoke.
+            started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            python3 scripts/record-cycle.py \
+              --task PROJECT-BOOTSTRAP \
+              --started "$started" \
+              --ended "$started" \
+              --result partial \
+              --evidence docs/tasks/PROJECT-BOOTSTRAP.md \
+              --notes "CI-only bootstrap cutover test; not real project gates"
+            git add .
+            git commit -qm "CI bootstrap telemetry cutover"
+            python3 scripts/check-telemetry-append-only.py --base-ref HEAD^
+            python3 scripts/check-telemetry-required.py --base-ref HEAD^
             if python3 scripts/init-project "CI downstream"; then
               echo "ERROR: destructive repeat init unexpectedly succeeded" >&2
               exit 1

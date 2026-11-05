@@ -1,40 +1,54 @@
 #!/usr/bin/env python3
+"""Enforce append-only project telemetry, with an explicit first-bootstrap cutover."""
+from __future__ import annotations
+
 import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_lib import TELEMETRY_PATH, load_jsonl
+from telemetry_cutover import bootstrap_cutover
+from telemetry_lib import load_jsonl
 
-p = argparse.ArgumentParser(description="Ensure telemetry history is append-only relative to a Git ref.")
-p.add_argument("--base-ref", required=True)
-args = p.parse_args()
+TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
 
-root = Path(__file__).resolve().parents[1]
-rel = TELEMETRY_PATH.relative_to(root)
 
-# Validate the current file first.
-try:
-    load_jsonl()
-except ValueError as exc:
-    raise SystemExit(str(exc))
+def git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
 
-proc = subprocess.run(
-    ["git", "show", f"{args.base_ref}:{rel.as_posix()}"],
-    cwd=root,
-    text=True,
-    capture_output=True,
-)
-if proc.returncode == 0:
-    old_lines = proc.stdout.splitlines()
-else:
-    # The telemetry file may legitimately not exist on the base ref yet.
-    old_lines = []
 
-new_lines = TELEMETRY_PATH.read_text(encoding="utf-8").splitlines() if TELEMETRY_PATH.exists() else []
+def check(repo: Path, base_ref: str) -> tuple[bool, str]:
+    if git(repo, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}").returncode != 0:
+        return False, f"Invalid telemetry base ref: {base_ref}"
+    try:
+        load_jsonl(repo / TELEMETRY_REL)
+    except ValueError as exc:
+        return False, str(exc)
+    previous = git(repo, "show", f"{base_ref}:{TELEMETRY_REL.as_posix()}")
+    if previous.returncode == 0:
+        old = previous.stdout.splitlines()
+    elif "does not exist in" in previous.stderr or "exists on disk, but not in" in previous.stderr:
+        old = []
+    else:
+        return False, "Could not retrieve base telemetry for comparison"
 
-if len(new_lines) < len(old_lines):
-    raise SystemExit("Telemetry is not append-only: existing rows were removed.")
-if new_lines[: len(old_lines)] != old_lines:
-    raise SystemExit("Telemetry is not append-only: existing rows were modified or reordered.")
+    path = repo / TELEMETRY_REL
+    new = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    if bootstrap_cutover(repo, base_ref, old, new):
+        return True, "telemetry bootstrap cutover: source TEMPLATE-* history isolated from new project"
+    if len(new) < len(old) or new[:len(old)] != old:
+        return False, "Telemetry is not append-only: existing rows removed, modified or reordered"
+    return True, f"telemetry append-only: preserved {len(old)} existing row(s), appended {len(new)-len(old)}"
 
-print(f"telemetry append-only: preserved {len(old_lines)} existing row(s), appended {len(new_lines)-len(old_lines)}")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Enforce telemetry history integrity.")
+    parser.add_argument("--base-ref", required=True)
+    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    args = parser.parse_args()
+    ok, message = check(args.repo.resolve(), args.base_ref)
+    print(message)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
