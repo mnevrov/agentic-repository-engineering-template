@@ -8,6 +8,7 @@
 
 ## In progress
 
+- [ ] TEMPLATE-14 — least-privilege CI and exact SHA release-review evidence.
 - [ ] TEMPLATE-13 — стабилизация release-evidence и статусов с тестированием Blocked.
 
 ## Blocked
