@@ -51,6 +51,21 @@ Reviewer's verified fix direction (`--full-history`) was applied exactly as reco
 
 **Post-round-2 verification (author):** 127 template tests OK; full round-1 battery re-run 9/9 blocked; round-2 PoC battery (evil merge, pct aliases ×{gates, init}, .git-tail init, replace-graft, duplicate cycle_id, worktree divergence) all blocked; downstream CI smoke PASS; real Pilot boundary replay PASS; validate-telemetry/doctor/check-task-state/opencode-acceptance PASS.
 
-## Round 3 — resubmission
+## Round 3 — VERDICT: CHANGES_REQUIRED (1 P0, 1 P1, 1 P2, doc drift)
 
-Round 3 re-reviews commit `0599c4b` with fresh context: verify R2-1…R2-9 closed and hunt for new bypasses. Verdict appended below.
+Fresh-context reviewer at commit `f6ac04b`; PoCs built under `/tmp/opencode/adv3/`, all independently reproduced by the author before implementing:
+
+| # | Sev | Finding (CONFIRMED) | Remediation + regression |
+|---|-----|----------------------|--------------------------|
+| R3-1 | P0 | The blanket `source_only` exemption in `history_monotonic` made the interior check inert for the template's OWN repository: a `result:"failed"` TEMPLATE-* row added in one PR commit and deleted in the next, with the base prefix restored byte-exactly, passed validate/append-only/required with the verbatim CI invocation | Two-regime rule: only a cutover-shaped final ledger (zero TEMPLATE-* rows, all valid) exempts intermediate source-only ledgers; any other final ledger is checked with no exemption; ledger-file deletion inside the range always fails. Regressions: `test_source_template_cannot_delete_template_row_with_prefix_restored`, `test_ledger_deleted_midrange_fails_closed` |
+| R3-2 | P1 | `lower()` executed before `unquote()`: `%41gentic-…` decodes to `Agentic-…` after case folding and evaded the source/mirror deny and the init guard (`git ls-remote` shows the server resolves it to the source HEAD) | Decode host and path before case folding in `repository_identity` and `source_url_matches`; regressions for `%41`, `…templat%45`, `%67ithub.com`, with downstream names unaffected |
+| R3-3 | P2 | A **directory** at `.ai/project-initialized`: `ls-tree -r` reported children's modes (regular blobs), and `git show` of a tree prints child names that satisfied `_valid_marker_content` → cutover unlocked | Non-recursive `ls-tree` with a single-entry requirement; regression `test_directory_marker_refuses_cutover` |
+| R3-4 | P2 | Doc/code drift: telemetry.md/docstring/ADR claimed an unconditional subsequence rule while the code had the source_only exemption | All three texts now state the two-regime rule and decode-before-lower ordering explicitly |
+
+Reviewer's own closure confirmations (round-2 items): R2-3, R2-4, R2-5, R2-6, R2-7, R2-8 CLOSED with their own PoCs; R2-1/R2-2 partially closed → superseded by the R3-1/R3-2 fixes above.
+
+**Post-round-3 verification (author):** 131 template tests OK; round-3 PoC trio blocked (prefix-restored deletion rc=1 both gates; `%41` identity now matches source; directory marker kind='special', text=None); full round-1/round-2 batteries re-run all blocked (9/9 + 4/4); downstream CI smoke PASS; real Pilot boundary replay PASS (3/3 rc=0 + tamper rejected); validate-telemetry/doctor/check-task-state PASS.
+
+## Round 4 — resubmission
+
+Round 4 re-reviews the fixed code with fresh context; verdict appended below.
