@@ -8,7 +8,6 @@
 
 ## In progress
 
-- [ ] TEMPLATE-15 — remediation of independent release audit findings (P1 telemetry provenance, P2/P3).
 - [ ] TEMPLATE-14 — least-privilege CI and exact SHA release-review evidence.
 - [ ] TEMPLATE-13 — стабилизация release-evidence и статусов с тестированием Blocked.
 
@@ -23,6 +22,7 @@
 
 ## Done
 
+- [x] TEMPLATE-15 — remediation of release audit telemetry provenance P1/P2/P3; CI `a3bf31a` PASS; release gate #9 separate.
 - [x] Создан базовый инженерный каркас репозитория.
 - [x] TEMPLATE-5 — сверка GitHub evidence и bounded follow-up.
 - [x] TEMPLATE-6 — symlinked Makefile guard + regression/review.
