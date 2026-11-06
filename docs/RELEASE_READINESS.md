@@ -32,6 +32,12 @@
 
 **Решение по TEMPLATE-15:** remediation закрыта без новых adversarial-раундов по поручению владельца. Это не выпуск `v0.1.0`. Issue #9 продолжает фиксировать отдельные release-gates; не подменять их успешным CI или завершённой security-remediation.
 
+## Owner approval и инструмент финализации (2026-11-06)
+
+Владелец явно разрешил завершить релиз после ознакомления с ограничениями. [Решение](release/OWNER_RELEASE_APPROVAL.md) фиксирует **отказ от отдельного независимого финального release review**, принимая его как остаточный риск; HOST/LLM E4 опирается на прежний отчёт владельца и не подтверждён новой технической проверкой. Это **не** означает, что недостающий review был выполнен.
+
+Подготовлен однокомандный `scripts/finalize_release.py` для администратора с локальным `gh` и личным GPG signing key: применяет и проверяет Ruleset, проверяет CI exact main SHA, подписывает тег, требует GitHub `Verified` и создаёт Release. Средства текущей ChatGPT GitHub-интеграции не обладают функциями Administration:write / Git tags / GitHub Releases, поэтому само наличие скрипта **не является фактом релиза**.
+
 ## Релизные действия (требуют доказательств)
 
 1. Получить PASS на exact final SHA `main` (doctor, telemetry, OpenCode v2 matrix, downstream smoke). Сохранить SHA и Actions URLs.

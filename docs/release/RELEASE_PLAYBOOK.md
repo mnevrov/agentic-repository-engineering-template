@@ -39,7 +39,20 @@ gh api repos/mnevrov/agentic-repository-engineering-template/rules/branches/main
 - [ ] На финальном SHA прошли все три CI jobs, включая `doctor` и обе версии OpenCode.
 - [ ] Issue #9 обновлён фактическими ссылками и явным решением о релизе.
 
-## 4. Создание подписанного тега и GitHub Release — только после checklist
+## 4. Однокомандный проверяемый выпуск
+
+Решение владельца о рисках записано в [OWNER_RELEASE_APPROVAL.md](OWNER_RELEASE_APPROVAL.md). Для запуска на своей машине с установленными `git`, `gh` и зарегистрированным на GitHub GPG signing key:
+
+```bash
+gh auth status
+git switch main && git pull --ff-only
+python3 scripts/finalize_release.py --preflight   # чтение: проверка exact SHA/CI/approval
+python3 scripts/finalize_release.py               # реальные admin ruleset, signed tag, Release
+```
+
+Скрипт **не** обходит реальные проверки: если admin token не допускает управление Rulesets, нет действующих CI-checks на final SHA или GitHub не верифицирует подпись тега, он прекращает работу без публикации Release. Повторный запуск безопасен для существующего действительного тега/Release. Не передавать GitHub credentials или signing key в ChatGPT, CI и файлы репозитория.
+
+## 5. Ручной вариант для администратора (только после checklist)
 
 На доверенной машине с локально настроенным Git signing key:
 
