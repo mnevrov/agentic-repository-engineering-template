@@ -75,6 +75,22 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertIn("Refusing to initialize the source template", proc.stderr + proc.stdout)
             self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
 
+    def test_refuses_local_path_clone_named_after_template(self):
+        # Confirmed adversarial finding: `git clone /abs/path/…-template`
+        # keeps the full template history and must never be initialized in
+        # place, on any host or path scheme.
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home) / "agentic-repository-engineering-template"
+            root.mkdir()
+            self.fixture(root)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "remote", "add", "origin", "/srv/mirrors/agentic-repository-engineering-template"],
+                           cwd=root, check=True)
+            proc = self.run_init(root)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Refusing to initialize the source template", proc.stderr + proc.stdout)
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
     def test_downstream_project_gates_do_not_conflict_with_template_contract_tests(self):
         with tempfile.TemporaryDirectory() as home:
             root = Path(home)

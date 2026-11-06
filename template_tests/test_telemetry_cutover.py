@@ -209,6 +209,108 @@ class TelemetryCutoverTests(unittest.TestCase):
         self.initialize()
         self.check(False, False)
 
+    def test_merge_with_parallel_rows_still_passes(self):
+        # Legitimate merge of two branches that each appended rows: the
+        # conflict resolution reorders rows (A before B instead of B before
+        # A at the intermediate commit), but every historical ledger remains
+        # an order-preserving subsequence of the merged ledger. Both gates
+        # must pass against the merge base.
+        self.initialize()
+        boot = self.git("rev-parse", "HEAD").stdout.strip()
+        self.git("checkout", "-q", "-b", "feature-a", boot)
+        with self.telemetry.open("a") as stream:
+            stream.write(row("STEP-A"))
+        (self.repo / "src/app.txt").write_text("a\n")
+        self.commit("row A")
+        self.git("checkout", "-q", "-b", "feature-b", boot)
+        with self.telemetry.open("a") as stream:
+            stream.write(row("STEP-B"))
+        (self.repo / "src/file-b.txt").write_text("b\n")
+        self.commit("row B")
+        # Merge B into A: cycles.jsonl conflicts; resolve as B-then-A order.
+        self.git("checkout", "-q", "feature-a")
+        merge = subprocess.run(["git", "merge", "--no-ff", "--no-commit", "feature-b"],
+                               cwd=self.repo, capture_output=True, text=True)
+        self.assertNotEqual(merge.returncode, 0)  # telemetry conflicted
+        boot_ledger = self.git("show", f"{boot}:.ai/telemetry/cycles.jsonl").stdout
+        self.telemetry.write_text(boot_ledger + row("STEP-B") + row("STEP-A"))
+        self.git("add", ".")
+        self.git("commit", "-qm", "merge with reordered resolution")
+        # Endpoint append-only vs boot base passes, and history_monotonic
+        # accepts the intermediate STEP-B-only ledger as a subsequence.
+        ok, message = append.check(self.repo, boot)
+        self.assertTrue(ok, message)
+
+    def test_stale_ancestor_cannot_reopen_cutover_after_growth(self):
+        # Adversarial-review P0: after a legitimate bootstrap and several real
+        # project cycles, presenting the pre-bootstrap template tip as base to
+        # delete the project ledger must fail. Intermediate ledgers in
+        # base..HEAD are not prefixes of the rewritten ledger.
+        self.initialize()
+        for index in range(3):
+            with self.telemetry.open("a") as stream:
+                stream.write(row(f"STEP-{index}"))
+            (self.repo / "src/app.txt").write_text(f"step {index}\n")
+            self.commit(f"step {index}")
+        self.telemetry.write_text(row("PROJECT-BOOTSTRAP"))
+        self.commit("attack: delete project telemetry")
+        root = self.git("rev-list", "--max-parents=0", "HEAD").stdout.strip()
+        self.assertFalse(append.check(self.repo, root)[0])
+
+    def test_symlink_marker_refuses_cutover(self):
+        # git show would happily print a symlink's target text; a committed
+        # symlink is not a regular marker file.
+        (self.repo / "marker-target").write_text(
+            "project_name=Pilot\nbootstrap_id=PROJECT-BOOTSTRAP\n")
+        (self.repo / ".ai/project-initialized").symlink_to("../marker-target")
+        self.telemetry.write_text(row("PROJECT-BOOTSTRAP"))
+        self.commit("Symlink marker")
+        self.assertFalse(append.check(self.repo, self.base)[0])
+
+    def test_url_insteadof_origin_refuses_cutover(self):
+        # url.<base>.insteadOf can silently retarget origin to another repo;
+        # while configured for this origin URL, identity is unverifiable.
+        self.git("config", "url.https://github.com/mnevrov/"
+                 "agentic-repository-engineering-template.git.insteadOf",
+                 self.DOWNSTREAM_ORIGIN)
+        self.initialize()
+        self.check(False, False)
+
+    def test_mirror_named_repository_refuses_cutover(self):
+        # An internal mirror keeping the template repository name must not
+        # cut its inherited ledger over.
+        self.git("remote", "set-url", "origin",
+                 "git@gitlab.t8.ru:sensor/other/agentic-repository-engineering-template.git")
+        self.initialize()
+        self.check(False, False)
+
+    def test_shallow_clone_refuses_cutover(self):
+        # A shallow boundary masquerades as a root commit; identity/lineage
+        # cannot be verified in a shallow clone.
+        clone = self.repo / "shallow-clone"
+        subprocess.run(["git", "clone", "-q", str(self.repo), str(clone)],
+                       check=True, capture_output=True, text=True)
+        # Simulate a shallow boundary deterministically: git reports
+        # shallow purely from a non-empty .git/shallow.
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=clone,
+                              check=True, capture_output=True, text=True).stdout
+        (clone / ".git" / "shallow").write_text(head, encoding="utf-8")
+        subprocess.run(["git", "remote", "set-url", "origin",
+                        self.DOWNSTREAM_ORIGIN], cwd=clone, check=True)
+        self.assertTrue(cutover._is_shallow(clone))
+        self.assertFalse(cutover.bootstrap_cutover(
+            clone, "HEAD^",
+            [row("TEMPLATE-1"), row("TEMPLATE-2")], [row("PROJECT-BOOTSTRAP")]))
+
+    def test_dash_base_ref_refuses_cutover(self):
+        # argparse's `--base-ref=--all` form would otherwise reach git diff
+        # as a flag and silently report 'no substantive change'.
+        self.initialize()
+        for unsafe in ("--all", "--exit-code", "-x"):
+            self.assertFalse(append.check(self.repo, unsafe)[0])
+            with self.assertRaises(ValueError):
+                required.check(self.repo, unsafe)
+
     def test_non_ancestor_base_ref_refuses_cutover(self):
         self.initialize()
         bootstrap = self.git("rev-parse", "HEAD").stdout.strip()
@@ -254,14 +356,48 @@ class RepositoryIdentityTests(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertIsNone(self.parse(url))
 
+    def test_dot_segment_aliasing_yields_none(self):
+        # Confirmed adversarial aliases: git/HTTP resolve these to the real
+        # repository, so they must not be normalized to a usable identity.
+        for url in (
+            "https://github.com/other/x/../pilot.git",
+        ):
+            with self.subTest(url=url):
+                self.assertIsNone(self.parse(url))
+
+    def test_port_and_trailing_dot_host_forms(self):
+        # Scheme-form ports, trailing-dot hosts and `/.` path aliases are
+        # genuine aliases of the same hosted repository: normalize them so
+        # source detection sees them, and reject `..` traversal outright.
+        self.assertEqual(self.parse("ssh://git@github.com:443/mnevrov/pilot.git"),
+                         "github.com/mnevrov/pilot")
+        self.assertEqual(self.parse("https://github.com./mnevrov/pilot"),
+                         "github.com/mnevrov/pilot")
+        self.assertEqual(self.parse("https://github.com/mnevrov/pilot.git/."),
+                         "github.com/mnevrov/pilot")
+        self.assertTrue(cutover.source_identity_matches(
+            self.parse("https://github.com./mnevrov/"
+                       "agentic-repository-engineering-template.git/.")))
+
     def test_source_identity_matches_only_exact_repository(self):
         self.assertTrue(cutover.source_identity_matches(
             "github.com/mnevrov/agentic-repository-engineering-template"))
+        # Equal-named mirrors must not cut their inherited ledger over.
+        self.assertTrue(cutover.source_identity_matches(
+            "gitlab.t8.ru/sensor/other/agentic-repository-engineering-template"))
         self.assertFalse(cutover.source_identity_matches(
             "github.com/mnevrov/agentic-repository-engineering-template-demo"))
         self.assertFalse(cutover.source_identity_matches(
-            "gitlab.t8.ru/sensor/other/agentic-repository-engineering-template"))
+            "github.com/mnevrov/pilot"))
         self.assertFalse(cutover.source_identity_matches(None))
+
+    def test_source_url_matches_covers_local_paths_and_mirrors(self):
+        self.assertTrue(cutover.source_url_matches(
+            "/home/dev/clones/agentic-repository-engineering-template"))
+        self.assertTrue(cutover.source_url_matches(
+            "https://gitlab.t8.ru/sensor/other/agentic-repository-engineering-template.git"))
+        self.assertFalse(cutover.source_url_matches("/home/dev/pilot"))
+        self.assertFalse(cutover.source_url_matches(""))
 
 
 if __name__ == "__main__":

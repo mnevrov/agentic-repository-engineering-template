@@ -6,7 +6,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_cutover import bootstrap_cutover
+from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, history_monotonic
 from telemetry_lib import load_jsonl
 
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
@@ -17,6 +17,8 @@ def git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def check(repo: Path, base_ref: str) -> tuple[bool, str]:
+    if not base_ref or UNSAFE_REF.search(base_ref):
+        return False, f"Refusing unsafe telemetry base ref: {base_ref!r}"
     if git(repo, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}").returncode != 0:
         return False, f"Invalid telemetry base ref: {base_ref}"
     try:
@@ -37,6 +39,8 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
         return True, "telemetry bootstrap cutover: source TEMPLATE-* history isolated from new project"
     if len(new) < len(old) or new[:len(old)] != old:
         return False, "Telemetry is not append-only: existing rows removed, modified or reordered"
+    if not history_monotonic(repo, base_ref, new):
+        return False, "Telemetry is not append-only: ledger rewritten inside base..HEAD history"
     return True, f"telemetry append-only: preserved {len(old)} existing row(s), appended {len(new)-len(old)}"
 
 

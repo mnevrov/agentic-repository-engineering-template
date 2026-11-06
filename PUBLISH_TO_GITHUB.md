@@ -16,6 +16,6 @@ GitHub repository имеет `is_template=true`, поддерживается т
 
 ## Release gate
 
-Release candidate — не production release. Сверяйтесь с [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9) и [docs/workshop/STATUS.md](docs/workshop/STATUS.md). До завершения HOST acceptance, независимого review и branch protection новый production tag не выпускайте.
+Текущее состояние — STABILIZATION: production release `v0.1.0` не одобрен и заблокирован незакрытыми gate. Сверяйтесь с [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), [issue #9](https://github.com/mnevrov/agentic-repository-engineering-template/issues/9) и [docs/workshop/STATUS.md](docs/workshop/STATUS.md). До завершения HOST acceptance, независимого review и branch protection новый production tag не выпускайте.
 
 Для митапа: [docs/MEETUP.md](docs/MEETUP.md).

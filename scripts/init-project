@@ -59,6 +59,42 @@ def remove(path: Path) -> None:
         path.unlink()
 
 
+def strip_dead_template_links(root: Path) -> None:
+    """Remove index/registry list lines pointing at removed template-only files.
+
+    A line is dropped only when it is a markdown list item whose link target
+    or inline-code token *resolves* to one of the removed files (relative to
+    the document), so customized project lines that merely mention the same
+    base name survive.
+    """
+    targets: set[str] = set()
+    for relative in TEMPLATE_ONLY_FILES:
+        targets.add(relative)
+    for document in ("docs/INDEX.md", "docs/RELEASE_READINESS.md"):
+        path = root / document
+        if not path.is_file() or path.is_symlink():
+            continue
+        base = path.parent
+        kept = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.lstrip().startswith("- "):
+                tokens = re.findall(r"\]\(([^)#]+)\)|`([^`]+)`", line)
+                resolved = set()
+                for target in (a or b for a, b in tokens):
+                    target = target.strip().lstrip("./")
+                    for base_dir in (base, root):
+                        candidate = (base_dir / target).resolve()
+                        try:
+                            name = candidate.relative_to(root.resolve()).as_posix()
+                        except ValueError:
+                            continue
+                        resolved.add(name)
+                if resolved & targets:
+                    continue
+            kept.append(line)
+        path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Initialize a repository created from Agentic Repository Engineering Template."
@@ -139,20 +175,11 @@ def main() -> int:
     for relative in TEMPLATE_ONLY_FILES:
         remove(root / relative)
 
-    # docs/INDEX.md is kept verbatim for downstream; drop only the lines that
-    # linked the template-only files removed above, so the project-memory
-    # index never inherits dead links.
-    index = root / "docs" / "INDEX.md"
-    if index.is_file() and not index.is_symlink():
-        needles = {relative} | {
-            relative[len("docs/"):] if relative.startswith("docs/") else relative
-            for relative in TEMPLATE_ONLY_FILES
-        }
-        kept = [
-            line for line in index.read_text(encoding="utf-8").splitlines()
-            if not any(needle in line for needle in needles)
-        ]
-        index.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    # docs/INDEX.md is kept verbatim for downstream; drop only list items
+    # whose link target or inline-code reference names a template-only file
+    # removed above, so the project-memory index never inherits dead links
+    # and project-customized lines that merely mention the name survive.
+    strip_dead_template_links(root)
 
     (root / "docs" / "adr").mkdir(parents=True, exist_ok=True)
     (root / "docs" / "adr" / ".gitkeep").touch()

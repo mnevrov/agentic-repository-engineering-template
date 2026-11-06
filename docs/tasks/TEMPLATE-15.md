@@ -18,12 +18,12 @@
 
 ## Acceptance Criteria
 
-- [ ] AC-1: PoC аудитора (поддельный маркер + замена `TEMPLATE-*` истории) отклоняется обоими gate в Git-backed тесте, воспроизводящем layout исходного шаблона.
-- [ ] AC-2: каждый provenance-отказ отдельный: отсутствие origin, локальный/`file://` origin, origin source-template, untracked маркер, worktree-маркер, не-ancestor base, disjoint history, маркер в base/корне.
-- [ ] AC-3: первый downstream bootstrap и strict append-only после него работают (позитивные регрессии + downstream smoke с CI-origin).
-- [ ] AC-4: `make test-template`, `repo-doctor --template`, `validate-telemetry.py`, `check-task-state.py` PASS.
-- [ ] AC-5: allow-правила shell без `*` и без операторов; контракт закреплен тестом.
-- [ ] AC-6: независимый clean-context adversarial review сохранен в `docs/reviews/`, P0/P1 устранены.
+- [x] AC-1: PoC аудитора (поддельный маркер + замена `TEMPLATE-*` истории) отклоняется обоими gate в Git-backed тесте, воспроизводящем layout исходного шаблона.
+- [x] AC-2: каждый provenance-отказ отдельный: отсутствие origin, локальный/`file://` origin, origin source-template (включая алиасы `/.`, dot-segment, порт, trailing-dot host), одноимённое зеркало, untracked/worktree/symlink-маркер, не-ancestor base, disjoint history, маркер в base/корне, shallow-клон, `url.*.insteadOf`, `--base-ref` с `-`.
+- [x] AC-3: первый downstream bootstrap и strict append-only после него работают (позитивные регрессии, merge-with-parallel-rows, downstream smoke с CI-origin, replay реального Pilot `mnevrov/agentic-template` на boundary-коммитах).
+- [x] AC-4: `make test-template` (122), `repo-doctor --template`, `validate-telemetry.py`, `check-task-state.py` PASS.
+- [x] AC-5: allow-правила shell без `*` и без операторов; контракт закреплен тестом.
+- [ ] AC-6: независимый clean-context adversarial review сохранен в `docs/reviews/`, P0/P1 устранены (round-1 verdict CHANGES_REQUIRED; исправления внесены, round-2 resubmission выполняется).
 - [ ] AC-7: PR создан; merge/tag/RC — только после подтверждения владельца.
 
 ## План проверки

@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_cutover import bootstrap_cutover
+from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, history_monotonic
 
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
 
@@ -15,6 +15,8 @@ def git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def changed_files(repo: Path, base_ref: str) -> list[str]:
+    if not base_ref or UNSAFE_REF.search(base_ref):
+        raise ValueError(f"unsafe telemetry base ref: {base_ref!r}")
     proc = git(repo, "diff", "--name-only", base_ref, "HEAD")
     if proc.returncode != 0:
         raise ValueError(proc.stderr.strip() or f"cannot diff {base_ref}..HEAD")
@@ -43,6 +45,11 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
 
     old = telemetry_lines_at_ref(repo, base_ref)
     new = telemetry_lines_now(repo)
+    # Integrity over the full range is enforced here as well, so the gate
+    # cannot be satisfied alone against a stale PR target branch after rows
+    # were deleted or rewritten inside base..HEAD.
+    if not history_monotonic(repo, base_ref, new):
+        return False, "Telemetry is not append-only: ledger rewritten inside base..HEAD history"
     if bootstrap_cutover(repo, base_ref, old, new):
         old = []  # Project's first ledger starts after dropping source-only history.
     appended = len(new) - len(old)

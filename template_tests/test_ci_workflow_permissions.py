@@ -2,6 +2,11 @@
 import unittest
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:  # fail closed: the guard itself must be able to run
+    yaml = None
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/doctor.yml"
 
@@ -16,12 +21,19 @@ class WorkflowSecurityTests(unittest.TestCase):
             r"(?m)^  doctor:\s*\n    runs-on: ubuntu-latest\s*\n    timeout-minutes: 20",
         )
 
+    @unittest.skipIf(yaml is None, "PyYAML required for structural assertions")
     def test_no_job_level_permissions_escalation(self):
-        # Job-level 'permissions:' blocks can widen the read-only workflow
-        # token after the fact; their absence must be asserted, not just the
-        # presence of the workflow-level restriction.
-        content = WORKFLOW.read_text(encoding="utf-8")
-        self.assertNotRegex(content, r"(?m)^\s{2,}permissions:\s*$|^\s{2,}permissions:\s*\S")
+        # Job-level 'permissions:' blocks widen the read-only workflow token.
+        # Assert structurally on the parsed YAML: quoted-key aliases
+        # ("permissions":) or reordering defeat any text-regex approximation.
+        workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        self.assertEqual(workflow.get("permissions"), {"contents": "read"})
+        jobs = workflow.get("jobs", {})
+        self.assertTrue(jobs)
+        for name, job in jobs.items():
+            self.assertNotIn("permissions", job, f"job {name} declares permissions")
+            self.assertIn("timeout-minutes", job, f"job {name} has no timeout")
+
 
 if __name__ == "__main__":
     unittest.main()
