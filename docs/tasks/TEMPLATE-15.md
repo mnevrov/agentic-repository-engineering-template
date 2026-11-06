@@ -24,7 +24,7 @@
 - [x] AC-4: `make test-template` (122), `repo-doctor --template`, `validate-telemetry.py`, `check-task-state.py` PASS.
 - [x] AC-5: allow-правила shell без `*` и без операторов; контракт закреплен тестом.
 - [x] AC-6: независимый clean-context adversarial review (rounds 1-5, все подтверждённые P0/P1 устранены с регрессиями) сохранен в `docs/reviews/TEMPLATE-15-review.md`; round 6 сжат автором по явному указанию владельца (время) — pre-check атак-поверхностей, residual раскрыт в артефакте.
-- [ ] AC-7: PR создан; merge/tag/RC — только после подтверждения владельца.
+- [x] AC-7: PR не создавался: владелец указал прямой merge в main. `2043f6d..f0f2a34` смержен fast-forward и запушен по SSH; CI Repository Doctor на `f0f2a34` — success. Tag/RC не тронуты.
 
 ## План проверки
 
