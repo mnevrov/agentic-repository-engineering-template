@@ -67,3 +67,5 @@
 ## Release readiness
 
 - [`RELEASE_READINESS.md`](RELEASE_READINESS.md) — статусы технических и HOST/модельных gate для OpenCode-only шаблона.
+- [`release/RELEASE_PLAYBOOK.md`](release/RELEASE_PLAYBOOK.md) — как активировать branch protection и после approval безопасно выпустить подписанный v0.1.0.
+- [`releases/v0.1.0-DRAFT.md`](releases/v0.1.0-DRAFT.md) — подготовленный, но не опубликованный текст GitHub Release.
