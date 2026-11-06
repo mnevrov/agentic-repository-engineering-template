@@ -4,6 +4,14 @@
 
 Технический CI, отчёт владельца о HOST/Pilot и независимый release-review — разные уровни доказательств.
 
+## Release sprint 2026-11-06: проверенное исполнение
+
+**TEMPLATE-16 — release-preflight завершён, production release не одобрен.** Последняя проверенная версия source после закрытия TEMPLATE-15: `59e432167dd3d223c96d0bf966d2977949f84bd4`, [CI run 42196905872](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42196905872), PASS: `doctor`, OpenCode 2.1.2 (negative compatibility), OpenCode 2.2.5 (positive). После включения этого раздела final SHA изменится: требуется собственный CI (не считать старый SHA текущим).
+
+Отдельный Pilot `mnevrov/agentic-template` смержил [PR #2](https://github.com/mnevrov/agentic-template/pull/2) с настоящим isolated CLI/Git/telemetry `make test-integration`; exact-main `d2fdf020be2a465549f31896c84e6be02132eb36`, [Actions 42198531178](https://github.com/mnevrov/agentic-template/actions/runs/42198531178) PASS (`Ran 2 tests ... OK`). Это E3 компоненты, **не** реальные OpenCode/LiteLLM E4 и не сквозной агентный сценарий.
+
+На момент проверки `main.protected=false`, repository rulesets `[]`, tags `[]`, releases `[]`. GitHub connector не предоставляет записи Rulesets или создания signed tag / Release. Предусмотрены [ruleset JSON](release/MAIN_RULESET.json), [release playbook](release/RELEASE_PLAYBOOK.md) и [v0.1.0 draft notes](releases/v0.1.0-DRAFT.md), но эти материалы сами по себе ничего не активируют.
+
 ## Матрица gate-evidence на 2026-11-06
 
 | Критерий | Доказательство | Статус |
@@ -15,10 +23,10 @@
 | OpenCode HOST acceptance | `make opencode-acceptance` | PASS по отчёту владельца |
 | Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; эти HOST-события не являются CI-аттестацией |
 | Pilot PR и post-merge Actions | [run 42023246757](https://github.com/mnevrov/agentic-template/actions/runs/42023246757), [run 42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100), merge `c23cbbb9c51d2a988a233373882d0b2d512afebf` | Ранее подтверждено владельцем; доступен `mnevrov/agentic-template`, но эти CI не заменяют HOST-доказательства |
-| Integration/e2e на Pilot | `make test-integration` | **NOT CONFIGURED, rc=2** — fail-closed, не PASS |
+| Pilot CLI/Git/telemetry local integration (E3) | [Pilot PR #2](https://github.com/mnevrov/agentic-template/pull/2), [post-merge CI 42198531178](https://github.com/mnevrov/agentic-template/actions/runs/42198531178) | **PASS** — 2 настоящих subprocess/Git интеграционных теста в изолированном репозитории; external OpenCode/LLM E4 остаётся недоказанным |
 | Final independent review точного release SHA | issue #9 / отдельный release verdict | **NOT PERFORMED**; дополнительные раунды TEMPLATE-15 отменены владельцем, но это не равнозначно release-approval |
 | Защита main | GitHub `branches/main` показывает `protected=false`; `rulesets` пусты (проверка 2026-11-06) | **BLOCKED**: на момент закрытия TEMPLATE-15 защита не настроена; доступный GitHub connector не предоставляет запись branch rules |
-| Версионированный v0.1.0 | tag/release | **NOT CREATED** |
+| Версионированный v0.1.0 | [playbook](release/RELEASE_PLAYBOOK.md), [draft notes](releases/v0.1.0-DRAFT.md); GitHub tags/releases пусты | **NOT CREATED** — ожидает активной защиты main и явного release approval |
 
 **Уровни evidence:** E1 — static; E2 — unit/contract; E3 — integration/e2e; E4 — target/prod-like; E5 — эксплуатационное повторение. Один факт green CI **не** повышает unit-tests до E3.
 
