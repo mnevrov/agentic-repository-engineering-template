@@ -522,6 +522,43 @@ class TelemetryCutoverTests(unittest.TestCase):
         finally:
             grafts.unlink()
 
+    def test_grafts_file_in_common_dir_refuses_from_linked_worktree(self):
+        # Round-5 F1: `rev-parse --git-dir` in a LINKED worktree points at
+        # .git/worktrees/<name>, but git honors grafts from the COMMON dir.
+        # The check must follow `--git-path`, or both gates silently skip the
+        # integrity check exactly in the worktree workflows this repo teaches.
+        wt = self.repo / "wt"
+        self.git("worktree", "add", "-q", str(wt), "HEAD")
+        proc = subprocess.run(["git", "rev-parse", "--git-path", "info/grafts"],
+                              cwd=wt, check=True, capture_output=True, text=True)
+        grafts = Path(proc.stdout.strip())
+        if not grafts.is_absolute():
+            grafts = wt / grafts
+        grafts.parent.mkdir(parents=True, exist_ok=True)
+        grafts.write_text(self.base + " " + self.base + "\n", encoding="utf-8")
+        try:
+            self.assertTrue(cutover._has_replace_refs(wt))
+        finally:
+            grafts.unlink()
+            self.git("worktree", "remove", "--force", str(wt))
+
+    def test_unreadable_grafts_file_refuses_without_traceback(self):
+        # Round-5 F4: an unreadable grafts file must fail closed as a plain
+        # message, not as a PermissionError traceback escaping either gate.
+        self.initialize()
+        grafts = self.repo / ".git" / "info" / "grafts"
+        grafts.parent.mkdir(exist_ok=True)
+        grafts.write_text("deadbeef cafebabe\n", encoding="utf-8")
+        grafts.chmod(0)
+        try:
+            ok_append, _ = append.check(self.repo, self.base)
+            ok_required, _ = required.check(self.repo, self.base)
+            self.assertFalse(ok_append)
+            self.assertFalse(ok_required)
+        finally:
+            grafts.chmod(0o644)
+            grafts.unlink()
+
     def test_directory_ledger_path_fails_closed(self):
         # A tree at the ledger path would make `git show` print a child
         # listing (which passed JSON parsing would then see as rows); the
@@ -647,6 +684,35 @@ class RepositoryIdentityTests(unittest.TestCase):
         self.assertFalse(cutover.source_url_matches("/home/dev/pilot"))
         self.assertFalse(cutover.source_url_matches(""))
         self.assertFalse(cutover.source_url_matches(".git"))
+
+    def test_source_url_matches_resolves_dot_segments(self):
+        # Round-5 F2: `git clone .` inside the template records
+        # '/abs/path/…-template/.' verbatim; an unresolved '.'/'..'/'//' tail
+        # aliased past the destructive-guard name check.
+        for url in (
+            "/srv/agentic-repository-engineering-template/.",
+            "/srv/agentic-repository-engineering-template/./",
+            "/srv/agentic-repository-engineering-template//.",
+            "/srv/agentic-repository-engineering-template/./.",
+            "/srv/other/../agentic-repository-engineering-template",
+            "file:///srv/agentic-repository-engineering-template/.",
+            "/srv/agentic-repository-engineering-template/../"
+            "agentic-repository-engineering-template",
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(cutover.source_url_matches(url))
+        self.assertFalse(cutover.source_url_matches("/srv/pilot-project/."))
+        self.assertFalse(cutover.source_url_matches("/srv/other/x/../pilot"))
+
+    def test_repository_identity_canonicalizes_repo_git_tail(self):
+        # Round-5 F5: '.../repo/.git' must normalize to the repository, not to
+        # an identity with an empty trailing segment.
+        self.assertEqual(
+            self.parse("https://github.com/example/pilot/.git"),
+            "github.com/example/pilot")
+        self.assertTrue(cutover.source_identity_matches(
+            self.parse("https://github.com/mnevrov/"
+                       "agentic-repository-engineering-template/.git")))
 
 
 if __name__ == "__main__":

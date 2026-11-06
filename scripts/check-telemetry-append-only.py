@@ -58,7 +58,13 @@ def main() -> int:
     parser.add_argument("--base-ref", required=True)
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
-    ok, message = check(args.repo.resolve(), args.base_ref)
+    # Structural ledger/lineage errors are contract violations reported as a
+    # plain message + nonzero exit, never as an unhandled traceback.
+    try:
+        ok, message = check(args.repo.resolve(), args.base_ref)
+    except (ValueError, RuntimeError) as exc:
+        print(str(exc))
+        return 1
     print(message)
     return 0 if ok else 1
 

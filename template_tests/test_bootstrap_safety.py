@@ -91,6 +91,43 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertIn("Refusing to initialize the source template", proc.stderr + proc.stdout)
             self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
 
+    def test_refuses_source_origin_with_dot_segment(self):
+        # Round-5 F2: `git clone .` inside the template records
+        # '/abs/path/…-template/.' verbatim; the guard must resolve dot
+        # segments before the name check instead of initializing in place.
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home) / "pilot"
+            root.mkdir()
+            self.fixture(root)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "remote", "add", "origin",
+                            "/srv/mirrors/agentic-repository-engineering-template/."],
+                           cwd=root, check=True)
+            proc = self.run_init(root)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Refusing to initialize the source template", proc.stderr + proc.stdout)
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
+    def test_refuses_multi_valued_origin_when_any_value_is_source(self):
+        # Round-5 F3: origin_url() reports None for a multi-valued url; the
+        # destructive guard must not collapse that ambiguity into 'not the
+        # source' — one of the values may be the template itself.
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home) / "pilot"
+            root.mkdir()
+            self.fixture(root)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "remote", "add", "origin",
+                            "https://github.com/example/pilot-project.git"],
+                           cwd=root, check=True)
+            subprocess.run(["git", "config", "--add", "remote.origin.url",
+                            "/srv/mirrors/agentic-repository-engineering-template"],
+                           cwd=root, check=True)
+            proc = self.run_init(root)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Refusing to initialize the source template", proc.stderr + proc.stdout)
+            self.assertTrue((root / "docs/tasks/TEMPLATE-1.md").exists())
+
     def test_downstream_project_gates_do_not_conflict_with_template_contract_tests(self):
         with tempfile.TemporaryDirectory() as home:
             root = Path(home)

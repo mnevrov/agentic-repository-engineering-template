@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from telemetry_cutover import (
-    origin_url,
+    origin_urls,
     source_identity_matches,
     source_url_matches,
     trusted_repository_identity,
@@ -35,10 +35,14 @@ def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def source_checkout(root: Path) -> bool:
-    # A trustworthy hosted identity of the source template, or any raw origin
-    # URL ending with the source repository path (covers local-path clones).
-    return source_identity_matches(trusted_repository_identity(root)) or \
-        source_url_matches(origin_url(root) or "")
+    # A trustworthy hosted identity of the source template, or ANY configured
+    # raw origin URL resolving to the source repository path (covers local-path
+    # clones). A multi-valued remote.origin.url is checked value-by-value: the
+    # destructive guard must stay conservative when provenance is ambiguous —
+    # one of the values may be the source even when no single url is verifiable.
+    if source_identity_matches(trusted_repository_identity(root)):
+        return True
+    return any(source_url_matches(url) for url in origin_urls(root))
 
 
 def validate_task_id(value: str) -> str:

@@ -87,6 +87,9 @@ def _canonical_segments(path: str) -> list[str] | None:
         return None
     if segments and segments[-1].endswith(".git"):
         segments[-1] = segments[-1][:-4]
+        # `.../repo/.git` leaves an EMPTY segment: the '.git' component was the
+        # whole segment, so the repository name is the segment before it.
+        segments = [segment for segment in segments if segment]
     return segments
 
 
@@ -145,7 +148,7 @@ def source_url_matches(url: str) -> bool:
     still carries the full template history and must never be initialized in
     place. Downstream projects rename the repository before init.
     """
-    url = url.strip().rstrip("/")
+    url = url.strip()
     if not url:
         return False
     # Decode first, then case-fold: servers resolve percent-escapes inside
@@ -153,17 +156,41 @@ def source_url_matches(url: str) -> bool:
     # local directory that literally contains %XX is the safe direction for
     # this destructive guard.
     url = unquote(url).lower()
-    # `git clone /path/to/repo/.git` clones the full history too: the parent
-    # directory carries the repository name.
-    if url.endswith("/.git"):
-        url = url[: -len("/.git")]
-    if url == ".git":
+    # Resolve separators and dot segments the way git/HTTP servers do:
+    # `git clone .` inside the template records `/path/to/repo/.` verbatim,
+    # and an unresolved `.` tail would alias past the name check. `..`
+    # clamps at the root exactly like a filesystem path.
+    stack: list[str] = []
+    for segment in re.split(r"[/ :]+", url):
+        if not segment or segment == ".":
+            continue
+        if segment == "..":
+            if stack:
+                stack.pop()
+            continue
+        stack.append(segment)
+    # `…/repo/.git` clones the full history too: the parent directory carries
+    # the repository name.
+    if stack and stack[-1] == ".git":
+        stack.pop()
+    if not stack:
         return False
-    source = SOURCE_REPOSITORY.lower()
-    if url.endswith("/" + source) or url.endswith(":" + source):
+    source = SOURCE_REPOSITORY.split("/")
+    source_name = SOURCE_REPOSITORY_NAME
+    if [segment.lower() for segment in stack[-len(source):]] == source:
         return True
-    tail = url.replace("://", "/").rsplit("/", 1)[-1]
-    return _strip_git_suffix(tail) == SOURCE_REPOSITORY_NAME
+    return _strip_git_suffix(stack[-1]) == source_name
+
+
+def origin_urls(repo: Path) -> list[str]:
+    """Every configured remote.origin.url value (transport uses the FIRST)."""
+    proc = subprocess.run(
+        ["git", "config", "--get-all", "remote.origin.url"],
+        cwd=repo, capture_output=True, text=True
+    )
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
 def origin_url(repo: Path) -> str | None:
@@ -172,23 +199,8 @@ def origin_url(repo: Path) -> str | None:
     ``git config --get`` shows only the LAST value while fetch/push use the
     FIRST, so a multi-valued url gives readers and transport an ambiguous
     effective target. Ambiguity is unverifiable provenance: no identity."""
-    proc = subprocess.run(
-        ["git", "config", "--get-all", "remote.origin.url"],
-        cwd=repo, capture_output=True, text=True
-    )
-    if proc.returncode != 0:
-        return None
-    values = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
-    if len(values) != 1:
-        return None
-    return values[0]
-
-
-def _insteadof_bases(config_entries: list[tuple[str, str]]) -> list[str]:
-    """All configured url.<base>.insteadOf bases (each may rewrite origins)."""
-    return [value for key, value in config_entries
-            if key.startswith("url.") and key.endswith(".insteadof")
-            and value.strip()]
+    values = origin_urls(repo)
+    return values[0] if len(values) == 1 else None
 
 
 def _origin_rewritten(repo: Path, url: str) -> bool:
@@ -390,14 +402,17 @@ def _has_replace_refs(repo: Path) -> bool:
     proc = _git(repo, "for-each-ref", "refs/replace/")
     if proc.returncode != 0 or bool(proc.stdout.strip()):
         return True
-    proc = _git(repo, "rev-parse", "--git-dir")
+    proc = _git(repo, "rev-parse", "--git-path", "info/grafts")
     if proc.returncode != 0:
         return True
-    git_dir = Path(proc.stdout.strip())
-    if not git_dir.is_absolute():
-        git_dir = repo / git_dir
-    grafts = git_dir / "info" / "grafts"
-    return grafts.is_file() and bool(grafts.read_bytes().strip())
+    grafts = Path(proc.stdout.strip())
+    if not grafts.is_absolute():
+        grafts = repo / grafts
+    try:
+        return grafts.is_file() and bool(grafts.read_bytes().strip())
+    except OSError:
+        # Unreadable but present => lineage cannot be verified.
+        return True
 
 
 def _unverifiable_new(rows: list[str]) -> bool:
@@ -422,14 +437,6 @@ def _is_subsequence(needle: list[str], haystack: list[str]) -> bool:
         except ValueError:
             return False
     return True
-
-
-def _absent_at(repo: Path, commit: str) -> bool:
-    proc = _git(repo, "show", f"{commit}:{TELEMETRY_REL}")
-    if proc.returncode == 0:
-        return False
-    return ("does not exist in" in proc.stderr
-            or "exists on disk, but not in" in proc.stderr)
 
 
 def history_monotonic(repo: Path, base_ref: str, new: list[str],
