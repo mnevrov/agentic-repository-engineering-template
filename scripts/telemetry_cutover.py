@@ -85,11 +85,19 @@ def _canonical_segments(path: str) -> list[str] | None:
                 if segment and segment != "."]
     if any(segment == ".." for segment in segments):
         return None
-    if segments and segments[-1].endswith(".git"):
+    if segments and segments[-1].lower().endswith(".git"):
+        # Case-insensitive: hosts strip the .git tail case-insensitively
+        # ('…repo.GIT' is the same repository), so the alias must normalize
+        # identically — the deny check runs on lowered segments and a raw-case
+        # tail would otherwise leave 'repo.git' as the repository NAME.
         segments[-1] = segments[-1][:-4]
         # `.../repo/.git` leaves an EMPTY segment: the '.git' component was the
         # whole segment, so the repository name is the segment before it.
         segments = [segment for segment in segments if segment]
+        if segments and segments[-1].lower() == ".git":
+            # '…/repo/.git/.git' has no resolvable repository name; a chain of
+            # gitdir components is not a cloneable alias — fail closed.
+            return None
     return segments
 
 

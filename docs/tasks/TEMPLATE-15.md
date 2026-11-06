@@ -23,7 +23,7 @@
 - [x] AC-3: первый downstream bootstrap и strict append-only после него работают (позитивные регрессии, merge-with-parallel-rows, downstream smoke с CI-origin, replay реального Pilot `mnevrov/agentic-template` на boundary-коммитах).
 - [x] AC-4: `make test-template` (122), `repo-doctor --template`, `validate-telemetry.py`, `check-task-state.py` PASS.
 - [x] AC-5: allow-правила shell без `*` и без операторов; контракт закреплен тестом.
-- [ ] AC-6: независимый clean-context adversarial review сохранен в `docs/reviews/`, P0/P1 устранены (round-1 verdict CHANGES_REQUIRED; исправления внесены, round-2 resubmission выполняется).
+- [x] AC-6: независимый clean-context adversarial review (rounds 1-5, все подтверждённые P0/P1 устранены с регрессиями) сохранен в `docs/reviews/TEMPLATE-15-review.md`; round 6 сжат автором по явному указанию владельца (время) — pre-check атак-поверхностей, residual раскрыт в артефакте.
 - [ ] AC-7: PR создан; merge/tag/RC — только после подтверждения владельца.
 
 ## План проверки

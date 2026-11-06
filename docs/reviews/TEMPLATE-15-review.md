@@ -98,3 +98,18 @@ Fresh-context reviewer at commit `79dfd0c` (PoCs under `/tmp/opencode/adv5/`); c
 
 **Post-round-5 verification (author):** 144 template tests OK; reviewer's poc1/poc2/poc3 re-run against the fixed tree: F1 attack rc=1 both gates (linked worktree + common-dir graft), F2 init rc=1 with 15 tasks/41 rows intact, F3 init rc=1 data intact; realistic grafted-worktree replay on this repo rc=1 both gates; unreadable grafts plain-message rc=1; `…/repo/.git` identity full and deny-true.
 
+## Round 6 — compressed (owner instruction: time-boxed, no long external review round)
+
+Per the owner's explicit instruction the full fresh-context round-6 review cycle was skipped; instead the attack surfaces a round-6 reviewer would probe first (named in the prepared brief) were pre-checked by the author against `d055579` and hardened pre-emptively:
+
+| Probe | Result | Action |
+|---|---|---|
+| Case-insensitive `.git` tail in `repository_identity`: `…template.GIT` → `host/owner/template.git` (tail NOT stripped pre-lowercase), so `source_identity_matches` deny saw a different repo name; GitHub serves `repo.GIT` case-insensitively | CONFIRMED (deny evasion at the identity layer; `source_url_matches` still refused, so no end-to-end gate bypass was demonstrated) | Tail strip made case-insensitive before lowering; `.GIT`/`.Git` now normalize identically; chain `…/.git/.git` fails closed; regressions extended |
+| Colon tokenizer in `source_url_matches` (`[/ :]+`): scp-style, port forms, `C:/`, `%2e`-encoded dot | Colon-collapse produces e.g. `github.com/8443:mnevrov/…` for the malformed `host:port:owner/repo` — the SOURCE name still lands in the tail and is refused; no downstream over-refusal found | No change (refuse-biased already; malformed-form matching the source errs safe) |
+| `%32e`/`%2e` tricks, `repo/.git` with case variants in `source_url_matches` | Resolved consistently after unquote-before-split | Covered by extended tests |
+| Grafts as directory / unreadable directory listing | `is_file()` False → not flagged; git itself warns and ignores a grafts directory | Accepted as-is (git semantics), OSError path already covered |
+
+**Post-round-6 verification (author):** 144 template tests OK; round-1 battery 9/9 blocked; F1 round-4b wipe blocked; round-5 probe set unchanged (F2 refuses, F4 rc=1); `.GIT` identity deny True; CI smoke PASS; real Pilot replay PASS; validate-telemetry 43 rows valid; repo's own gates vs `2043f6d` PASS.
+
+**Residual process risk (disclosed):** rounds 1-5 were external fresh-context reviews; the round-6 pass is author-executed pre-checks on predicted attack surfaces, not an independent clean-context review. The PR therefore remains a Human-Gate artifact; merging still requires the owner.
+

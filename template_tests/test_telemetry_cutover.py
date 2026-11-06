@@ -706,13 +706,27 @@ class RepositoryIdentityTests(unittest.TestCase):
 
     def test_repository_identity_canonicalizes_repo_git_tail(self):
         # Round-5 F5: '.../repo/.git' must normalize to the repository, not to
-        # an identity with an empty trailing segment.
+        # an identity with an empty trailing segment. Case-insensitive tail
+        # (a round-6 pre-check finding): hosts strip '.GIT' the same way, so
+        # 'repo.GIT' must not survive as the repository NAME 'repo.git'.
         self.assertEqual(
             self.parse("https://github.com/example/pilot/.git"),
+            "github.com/example/pilot")
+        self.assertEqual(
+            self.parse("https://github.com/example/pilot.GIT"),
+            "github.com/example/pilot")
+        self.assertEqual(
+            self.parse("https://github.com/example/pilot.Git"),
             "github.com/example/pilot")
         self.assertTrue(cutover.source_identity_matches(
             self.parse("https://github.com/mnevrov/"
                        "agentic-repository-engineering-template/.git")))
+        self.assertTrue(cutover.source_identity_matches(
+            self.parse("https://github.com/mnevrov/"
+                       "agentic-repository-engineering-template.GIT")))
+        # A chain of gitdir components has no resolvable repository name.
+        self.assertIsNone(
+            self.parse("https://github.com/example/pilot/.git/.git"))
 
 
 if __name__ == "__main__":
