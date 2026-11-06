@@ -4,23 +4,25 @@
 
 Технический CI, отчёт владельца о HOST/Pilot и независимый release-review — разные уровни доказательств.
 
-## Матрица gate-evidence на 2026-11-05
+## Матрица gate-evidence на 2026-11-06
 
 | Критерий | Доказательство | Статус |
 |---|---|---|
-| Исходный template doctor/tests | [exact main CI 42014455431](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42014455431), SHA `42559fa4` | PASS до стабилизационного PR; повторить на final SHA |
+| Source template: doctor, tests, OpenCode v2 matrix | [final remediation main CI 42195162188](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42195162188), SHA `a3bf31a`; `doctor`, v2.1.2 negative, v2.2.5 positive | **PASS на последнем кодовом SHA перед документальным закрытием TEMPLATE-15** |
 | Bootstrap и first telemetry cutover | PR #13 + downstream smoke в source CI | PASS, синтетический downstream |
-| Release audit P1 (telemetry provenance bypass) | PoC аудитора + provenance-bound cutover, `TEMPLATE-15` / ADR-0001 | В восстановлении: fix в PR, exact-head CI pending |
+| Release audit P1/P2/P3, TEMPLATE-15 | [TEMPLATE-15](tasks/TEMPLATE-15.md), [ADR-0001](adr/0001-provenance-bound-telemetry-cutover.md), [adversarial review rounds 1–6](reviews/TEMPLATE-15-review.md), [CI 42194726094](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42194726094), [CI 42195162188](https://github.com/mnevrov/agentic-repository-engineering-template/actions/runs/42195162188) | **ACCEPTED / REMEDIATION COMPLETE**; 144 reported tests, round 6 compressed by owner decision |
 | OpenCode v2.2.5 agents / v2.1.2 reject | PR #12 + матрица CI | PASS |
 | OpenCode HOST acceptance | `make opencode-acceptance` | PASS по отчёту владельца |
-| Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; через коннектор Pilot сейчас 404 |
-| Pilot PR и post-merge Actions | [run 42023246757](https://github.com/mnevrov/agentic-template/actions/runs/42023246757), [run 42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100), merge `c23cbbb9c51d2a988a233373882d0b2d512afebf` | PASS по отчёту владельца, не независимо проверено |
+| Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; эти HOST-события не являются CI-аттестацией |
+| Pilot PR и post-merge Actions | [run 42023246757](https://github.com/mnevrov/agentic-template/actions/runs/42023246757), [run 42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100), merge `c23cbbb9c51d2a988a233373882d0b2d512afebf` | Ранее подтверждено владельцем; доступен `mnevrov/agentic-template`, но эти CI не заменяют HOST-доказательства |
 | Integration/e2e на Pilot | `make test-integration` | **NOT CONFIGURED, rc=2** — fail-closed, не PASS |
-| Final independent review точного release SHA | artifact / reviewer verdict | **BLOCKED** |
-| Защита main | GitHub branch query | **BLOCKED**: `protected=false`; rulesets пусты; GitHub connector не может писать branch rules |
+| Final independent review точного release SHA | issue #9 / отдельный release verdict | **NOT PERFORMED**; дополнительные раунды TEMPLATE-15 отменены владельцем, но это не равнозначно release-approval |
+| Защита main | GitHub `branches/main` показывает `protected=false`; `rulesets` пусты (проверка 2026-11-06) | **BLOCKED**: на момент закрытия TEMPLATE-15 защита не настроена; доступный GitHub connector не предоставляет запись branch rules |
 | Версионированный v0.1.0 | tag/release | **NOT CREATED** |
 
 **Уровни evidence:** E1 — static; E2 — unit/contract; E3 — integration/e2e; E4 — target/prod-like; E5 — эксплуатационное повторение. Один факт green CI **не** повышает unit-tests до E3.
+
+**Решение по TEMPLATE-15:** remediation закрыта без новых adversarial-раундов по поручению владельца. Это не выпуск `v0.1.0`. Issue #9 продолжает фиксировать отдельные release-gates; не подменять их успешным CI или завершённой security-remediation.
 
 ## Релизные действия (требуют доказательств)
 
