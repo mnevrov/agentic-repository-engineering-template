@@ -7,30 +7,32 @@ any unverifiable condition fails closed:
 1. Shape (cheap, checked first): the base ledger is source-only ``TEMPLATE-*``
    history and the new ledger holds no ``TEMPLATE-*`` rows.
 2. Verifiable history: full (non-shallow) clone, no ``url.*.insteadOf``
-   rewriting that could mask the real fetch target.
+   rewriting that could mask the real fetch target, no ``refs/replace``
+   grafts that could fabricate ancestry.
 3. Provenance identity: ``remote.origin.url`` must parse, after
-   canonicalization (no dot-segments, dotted host, >=2 path segments), to a
-   hosted ``host/owner/repo`` identity whose repository-name segment is
-   neither the source template's nor an equal-named mirror of it. Missing or
-   unparsable origins (local path, file://, single-segment) are not a
-   trustworthy credential.
+   canonicalization (percent-decoded once, no dot-segments, dotted host,
+   >=2 path segments), to a hosted ``host/owner/repo`` identity whose
+   repository-name segment is neither the source template's nor an
+   equal-named mirror of it. Missing or unparsable origins (local path,
+   file://, single-segment) are not a trustworthy credential.
 4. Lineage and single use: ``base_ref`` is a well-formed, dash-free commit and
    an ancestor of HEAD; the marker is a regular-file blob committed in HEAD
    (content read from the HEAD blob only, never the worktree) with valid
    content; the marker is absent in ``base_ref`` and in the unique root
    commit; EVERY commit strictly between ``base_ref`` and HEAD carries the
-   marker; and every such commit's project ledger (when present and
-   non-source-only) is a prefix of the new ledger. Presenting an older
-   pre-bootstrap ancestor as the base therefore can never re-open the
-   exception after the first project commit, and mid-history deletions stay
-   append-only violations.
+   marker; and every ledger committed inside the range over ``--full-history``
+   (when non-source-only) is an order-preserving subsequence of the new
+   ledger — merge-simplification cannot hide an 'evil merge' that drops rows.
+   Presenting an older pre-bootstrap ancestor as the base therefore can never
+   re-open the exception after the first project commit, and mid-history
+   deletions stay append-only violations.
 5. Birth-from-template: the unique root commit must carry the ledger with the
    template's source-only ``TEMPLATE-*`` rows — the signature of a repository
    created from the template contents (GitHub 'Create from template' and the
    documented `git init` method both keep them). A full clone of the source
    template has no ledger at its root at all, so re-labelling its origin can
    never let it cut the inherited ledger over, and mid-history project rows
-   stay protected by the prefix condition above.
+   stay protected by the range condition above.
 """
 from __future__ import annotations
 
@@ -38,7 +40,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 MARKER = ".ai/project-initialized"
 TELEMETRY_REL = ".ai/telemetry/cycles.jsonl"
@@ -61,11 +63,13 @@ def _strip_git_suffix(path: str) -> str:
 def _canonical_segments(path: str) -> list[str] | None:
     """Split a URL path into canonical segments or return None.
 
-    Rejects dot-segments outright: `..` in a remote path is an aliasing trick
-    (git and HTTP servers resolve it). Empty and `.` segments are dropped, and
-    one optional trailing `.git` suffix on the repository segment is stripped.
+    Percent-escapes are decoded exactly once before splitting (git and HTTP
+    servers resolve them when fetching), then `..` segments are rejected as
+    aliasing tricks. Empty and `.` segments are dropped, and one optional
+    trailing `.git` suffix on the repository segment is stripped.
     """
-    segments = [segment for segment in path.split("/") if segment and segment != "."]
+    segments = [segment for segment in unquote(path).split("/")
+                if segment and segment != "."]
     if any(segment == ".." for segment in segments):
         return None
     if segments and segments[-1].endswith(".git"):
@@ -130,6 +134,20 @@ def source_url_matches(url: str) -> bool:
     url = url.strip().lower().rstrip("/")
     if not url:
         return False
+    # `git clone /path/to/repo/.git` clones the full history too: the parent
+    # directory carries the repository name. Percent-escapes are decoded for
+    # the same reason as repository_identity: HTTP servers fetch the decoded
+    # path. A local directory literally containing `%XX` is refused init at
+    # worst — the safe direction for a destructive guard.
+    if url.endswith("/.git"):
+        url = url[: -len("/.git")]
+    if url == ".git":
+        return False
+    url = unquote(url)
+    if url.endswith("/.git"):
+        url = url[: -len("/.git")]
+    if url == ".git":
+        return False
     source = SOURCE_REPOSITORY.lower()
     if url.endswith("/" + source) or url.endswith(":" + source):
         return True
@@ -181,6 +199,32 @@ def trusted_repository_identity(repo: Path) -> str | None:
     if _origin_rewritten(repo, url):
         return None
     return identity
+
+
+def committed_ledger(repo: Path) -> list[str]:
+    """Ledger committed at HEAD, refusing a diverged worktree copy.
+
+    Gates must evaluate the exact commit under review (the CI shape); an
+    uncommitted ledger rewrite locally must not make a dirty checkout look
+    greener than the commit it claims to verify.
+    """
+    proc = _git(repo, "show", f"HEAD:{TELEMETRY_REL}")
+    if proc.returncode != 0:
+        if "does not exist in" in proc.stderr or "exists on disk, but not in" in proc.stderr:
+            committed = ""
+        else:
+            raise RuntimeError(f"cannot read HEAD telemetry: {proc.stderr.strip()}")
+    else:
+        committed = proc.stdout
+    worktree_path = repo / TELEMETRY_REL
+    if worktree_path.is_symlink():
+        raise RuntimeError("telemetry ledger must not be a symlink")
+    worktree = worktree_path.read_text(encoding="utf-8") if worktree_path.exists() else ""
+    if worktree != committed:
+        raise RuntimeError(
+            "telemetry ledger in the worktree differs from HEAD; commit or revert it first"
+        )
+    return committed.splitlines()
 
 
 def source_only(lines: list[str]) -> bool:
@@ -266,6 +310,13 @@ def _is_shallow(repo: Path) -> bool:
     return proc.returncode != 0 or proc.stdout.strip() != "false"
 
 
+def _has_replace_refs(repo: Path) -> bool:
+    # git replace grafts can fabricate a root/marker ancestry locally; any
+    # non-empty refs/replace namespace makes lineage unverifiable.
+    proc = _git(repo, "for-each-ref", "refs/replace/")
+    return proc.returncode != 0 or bool(proc.stdout.strip())
+
+
 def _unverifiable_new(rows: list[str]) -> bool:
     try:
         records = [json.loads(line) for line in rows]
@@ -304,7 +355,12 @@ def history_monotonic(repo: Path, base_ref: str, new: list[str]) -> bool:
     """
     if not base_ref or UNSAFE_REF.search(base_ref):
         return False
-    touching = _git(repo, "rev-list", f"{base_ref}..HEAD", "--", TELEMETRY_REL)
+    # --full-history is mandatory: a path-limited rev-list without it prunes
+    # merge commits whose tree equals a parent's (default history
+    # simplification), which is exactly how an 'evil merge' could hide a
+    # ledger-deleting side branch from this check.
+    touching = _git(repo, "rev-list", "--full-history", f"{base_ref}..HEAD",
+                    "--", TELEMETRY_REL)
     if touching.returncode != 0:
         return False
     for commit in touching.stdout.split():
@@ -332,8 +388,8 @@ def bootstrap_cutover(repo: Path, base_ref: str, old: list[str], new: list[str])
     if not base_ref or UNSAFE_REF.search(base_ref) or not source_only(old) or _unverifiable_new(new):
         return False
 
-    # 2. Verifiable full history; no insteadOf masking of the fetch target.
-    if _is_shallow(repo):
+    # 2. Verifiable full history; no insteadOf masking, no replace-grafts.
+    if _is_shallow(repo) or _has_replace_refs(repo):
         return False
 
     # 3. Provenance identity of the repository the check runs in.

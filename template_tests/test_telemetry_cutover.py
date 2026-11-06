@@ -267,6 +267,48 @@ class TelemetryCutoverTests(unittest.TestCase):
         self.commit("Symlink marker")
         self.assertFalse(append.check(self.repo, self.base)[0])
 
+    def test_evil_merge_cannot_drop_committed_row(self):
+        # Round-2 P0: git rev-list <range> -- path applies default history
+        # simplification and prunes merge commits whose tree equals a
+        # parent's. An '-s ours' merge must not hide a side branch that
+        # appended (and here: honestly recorded a failed) ledger row.
+        self.initialize()
+        boot = self.git("rev-parse", "HEAD").stdout.strip()
+        self.git("checkout", "-q", "-b", "side", boot)
+        with self.telemetry.open("a") as stream:
+            stream.write(row("STEP-FAILED"))
+        (self.repo / "src/risky.txt").write_text("risky\n")
+        self.commit("side: risky change + failed cycle")
+        self.git("checkout", "-q", "-b", "mainline", boot)
+        self.git("merge", "-q", "--no-commit", "-s", "ours", "side")
+        self.git("commit", "-qm", "evil merge silently drops the failed row")
+        with self.telemetry.open("a") as stream:
+            stream.write(row("STEP-NEXT"))
+        (self.repo / "src/feature.txt").write_text("feature\n")
+        self.commit("later normal cycle")
+        self.assertFalse(append.check(self.repo, boot)[0])
+        self.assertFalse(required.check(self.repo, boot)[0])
+
+    def test_worktree_ledger_diverged_from_head_fails_closed(self):
+        # Gates evaluate the committed HEAD ledger; an uncommitted local
+        # rewrite must never produce a green local verdict.
+        self.initialize()
+        product_base = self.git("rev-parse", "HEAD").stdout.strip()
+        with self.telemetry.open("a") as stream:
+            stream.write(row("FOLLOWUP-1"))
+        (self.repo / "src/app.txt").write_text("change\n")
+        self.commit("cycle recorded")
+        # Uncommitted row deletion in the worktree only.
+        original = self.telemetry.read_text()
+        self.telemetry.write_text(row("PROJECT-BOOTSTRAP"))
+        ok_a, msg_a = append.check(self.repo, product_base)
+        ok_r, msg_r = required.check(self.repo, product_base)
+        self.assertFalse(ok_a, msg_a)
+        self.assertFalse(ok_r, msg_r)
+        self.assertIn("worktree", msg_a)
+        self.telemetry.write_text(original)
+        self.assertTrue(append.check(self.repo, product_base)[0])
+
     def test_url_insteadof_origin_refuses_cutover(self):
         # url.<base>.insteadOf can silently retarget origin to another repo;
         # while configured for this origin URL, identity is unverifiable.
@@ -306,10 +348,21 @@ class TelemetryCutoverTests(unittest.TestCase):
         # argparse's `--base-ref=--all` form would otherwise reach git diff
         # as a flag and silently report 'no substantive change'.
         self.initialize()
-        for unsafe in ("--all", "--exit-code", "-x"):
+        for unsafe in ("--all", "--exit-code", "-x", ""):
             self.assertFalse(append.check(self.repo, unsafe)[0])
-            with self.assertRaises(ValueError):
-                required.check(self.repo, unsafe)
+            self.assertFalse(required.check(self.repo, unsafe)[0])
+
+    def test_replace_refs_refuse_cutover(self):
+        # git replace grafts can fabricate a template-signature root locally;
+        # any refs/replace object makes lineage unverifiable.
+        self.initialize()
+        root = self.git("rev-list", "--max-parents=0", "HEAD").stdout.strip()
+        grafted = self.git("commit-tree", f"{root}^{{tree}}", "-m", "fake root").stdout.strip()
+        self.git("replace", root, grafted)
+        try:
+            self.check(False, False)
+        finally:
+            self.git("replace", "-d", root)
 
     def test_non_ancestor_base_ref_refuses_cutover(self):
         self.initialize()
@@ -391,13 +444,33 @@ class RepositoryIdentityTests(unittest.TestCase):
             "github.com/mnevrov/pilot"))
         self.assertFalse(cutover.source_identity_matches(None))
 
+    def test_percent_encoded_paths_are_decoded_once(self):
+        # Round-2 P1: servers fetch the decoded path, so aliases must be
+        # normalized to the same identity the deny list sees.
+        self.assertEqual(
+            self.parse("https://github.com/mnevrov/%61gentic-repository-engineering-template"),
+            "github.com/mnevrov/agentic-repository-engineering-template")
+        self.assertTrue(cutover.source_identity_matches(self.parse(
+            "git@gitlab.t8.ru:sensor/%61gentic-repository-engineering-template.git")))
+        # Decoding happens once: double-encoded %2561 stays literal and is a
+        # different path, not the source.
+        self.assertNotEqual(self.parse(
+            "https://github.com/mnevrov/%2561gentic-repository-engineering-template"),
+            "github.com/mnevrov/agentic-repository-engineering-template")
+
     def test_source_url_matches_covers_local_paths_and_mirrors(self):
         self.assertTrue(cutover.source_url_matches(
             "/home/dev/clones/agentic-repository-engineering-template"))
         self.assertTrue(cutover.source_url_matches(
             "https://gitlab.t8.ru/sensor/other/agentic-repository-engineering-template.git"))
+        # Round-2 P2: `git clone /path/repo/.git` clones the full history too.
+        self.assertTrue(cutover.source_url_matches(
+            "/srv/mirrors/agentic-repository-engineering-template/.git"))
+        self.assertTrue(cutover.source_url_matches(
+            "https://github.com/mnevrov/%61gentic-repository-engineering-template"))
         self.assertFalse(cutover.source_url_matches("/home/dev/pilot"))
         self.assertFalse(cutover.source_url_matches(""))
+        self.assertFalse(cutover.source_url_matches(".git"))
 
 
 if __name__ == "__main__":

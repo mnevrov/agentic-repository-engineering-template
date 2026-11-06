@@ -6,7 +6,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, history_monotonic
+from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, committed_ledger, history_monotonic
 from telemetry_lib import load_jsonl
 
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
@@ -21,10 +21,6 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
         return False, f"Refusing unsafe telemetry base ref: {base_ref!r}"
     if git(repo, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}").returncode != 0:
         return False, f"Invalid telemetry base ref: {base_ref}"
-    try:
-        load_jsonl(repo / TELEMETRY_REL)
-    except ValueError as exc:
-        return False, str(exc)
     previous = git(repo, "show", f"{base_ref}:{TELEMETRY_REL.as_posix()}")
     if previous.returncode == 0:
         old = previous.stdout.splitlines()
@@ -33,8 +29,18 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
     else:
         return False, "Could not retrieve base telemetry for comparison"
 
-    path = repo / TELEMETRY_REL
-    new = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    # Evaluate the ledger committed at HEAD (the CI shape); a diverged
+    # worktree copy is a fail-closed error, never a silent local pass.
+    try:
+        new = committed_ledger(repo)
+    except RuntimeError as exc:
+        return False, str(exc)
+    # committed_ledger guarantees worktree == HEAD blob, so validating the
+    # worktree path is validating exactly the committed ledger.
+    try:
+        load_jsonl(repo / TELEMETRY_REL)
+    except ValueError as exc:
+        return False, str(exc)
     if bootstrap_cutover(repo, base_ref, old, new):
         return True, "telemetry bootstrap cutover: source TEMPLATE-* history isolated from new project"
     if len(new) < len(old) or new[:len(old)] != old:

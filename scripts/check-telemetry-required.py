@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, history_monotonic
+from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, committed_ledger, history_monotonic
 
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
 
@@ -32,19 +32,21 @@ def telemetry_lines_at_ref(repo: Path, ref: str) -> list[str]:
     raise ValueError(proc.stderr.strip() or f"cannot read telemetry at {ref}")
 
 
-def telemetry_lines_now(repo: Path) -> list[str]:
-    path = repo / TELEMETRY_REL
-    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-
-
 def check(repo: Path, base_ref: str) -> tuple[bool, str]:
+    if not base_ref or UNSAFE_REF.search(base_ref):
+        return False, f"Refusing unsafe telemetry base ref: {base_ref!r}"
     changed = changed_files(repo, base_ref)
     substantive = [path for path in changed if path != TELEMETRY_REL.as_posix()]
     if not substantive:
         return True, "no substantive change requires a telemetry row"
 
     old = telemetry_lines_at_ref(repo, base_ref)
-    new = telemetry_lines_now(repo)
+    # The committed HEAD ledger is the object under review; an uncommitted
+    # worktree rewrite must not produce a 'passes locally' verdict.
+    try:
+        new = committed_ledger(repo)
+    except RuntimeError as exc:
+        return False, str(exc)
     # Integrity over the full range is enforced here as well, so the gate
     # cannot be satisfied alone against a stale PR target branch after rows
     # were deleted or rewritten inside base..HEAD.

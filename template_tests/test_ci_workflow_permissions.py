@@ -1,14 +1,20 @@
 """Release CI token must be read-only even for untrusted pull requests."""
+import re
 import unittest
 from pathlib import Path
 
 try:
     import yaml
-except ImportError:  # fail closed: the guard itself must be able to run
+except ImportError:
     yaml = None
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/doctor.yml"
+
+# Any 'permissions' mapping key inside a job, including quoted aliases that
+# evade a plain-text match: two-or-more-space indentation puts it below the
+# workflow-level key (column 0).
+JOB_PERMISSION_KEY = re.compile(r"""(?m)^\s{2,}["']?permissions["']?\s*:""")
 
 
 class WorkflowSecurityTests(unittest.TestCase):
@@ -21,11 +27,15 @@ class WorkflowSecurityTests(unittest.TestCase):
             r"(?m)^  doctor:\s*\n    runs-on: ubuntu-latest\s*\n    timeout-minutes: 20",
         )
 
-    @unittest.skipIf(yaml is None, "PyYAML required for structural assertions")
     def test_no_job_level_permissions_escalation(self):
         # Job-level 'permissions:' blocks widen the read-only workflow token.
-        # Assert structurally on the parsed YAML: quoted-key aliases
-        # ("permissions":) or reordering defeat any text-regex approximation.
+        # Text guard always runs and covers quoted keys at job indentation.
+        content = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIsNone(JOB_PERMISSION_KEY.search(content))
+
+    @unittest.skipIf(yaml is None, "PyYAML unavailable; text guard still ran")
+    def test_no_job_level_permissions_escalation_structural(self):
+        # Same contract asserted on parsed YAML, immune to formatting tricks.
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         self.assertEqual(workflow.get("permissions"), {"contents": "read"})
         jobs = workflow.get("jobs", {})

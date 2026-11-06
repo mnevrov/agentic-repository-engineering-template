@@ -34,7 +34,8 @@ class InitProjectTests(unittest.TestCase):
             "- [`MEETUP.md`](MEETUP.md) — точка входа.\n"
             "- [`workshop/STATUS.md`](workshop/STATUS.md) — статус dry-run.\n"
             "- [`GETTING_STARTED.md`](GETTING_STARTED.md) — новый проект.\n"
-            "- корневой: `PUBLISH_TO_GITHUB.md` и `HANDOUT.md`\n"
+            "- корневые: [PUBLISH](PUBLISH_TO_GITHUB.md) и [HANDOUT](HANDOUT.md)\n"
+            "- См. `HANDOUT.md` в истории — это просто текст, не ссылка.\n"
             "- [`architecture/overview.md`](architecture/overview.md) — архитектура.\n",
             encoding="utf-8",
         )
@@ -87,8 +88,12 @@ class InitProjectTests(unittest.TestCase):
             self.assertTrue((root / ".ai/project-initialized").exists())
 
             index = (root / "docs" / "INDEX.md").read_text(encoding="utf-8")
-            for dead in ("MEETUP.md", "workshop/STATUS.md", "PUBLISH_TO_GITHUB.md", "HANDOUT.md"):
-                self.assertNotIn(dead, index)
+            for dead_line in ("[`MEETUP.md`]", "[`workshop/STATUS.md`]",
+                              "[PUBLISH](PUBLISH_TO_GITHUB.md)", "[HANDOUT](HANDOUT.md)"):
+                self.assertNotIn(dead_line, index)
+            # Prose that merely names a removed file in backticks survives:
+            # inline code is not a link and cannot go dead.
+            self.assertIn("См. `HANDOUT.md` в истории", index)
             for kept in ("GETTING_STARTED.md", "architecture/overview.md"):
                 self.assertIn(kept, index)
 

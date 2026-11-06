@@ -60,16 +60,16 @@ def remove(path: Path) -> None:
 
 
 def strip_dead_template_links(root: Path) -> None:
-    """Remove index/registry list lines pointing at removed template-only files.
+    """Remove index/registry list lines that are pure pointers to removed
+    template-only files.
 
-    A line is dropped only when it is a markdown list item whose link target
-    or inline-code token *resolves* to one of the removed files (relative to
-    the document), so customized project lines that merely mention the same
-    base name survive.
+    A line is dropped only when it is a markdown list item, it has at least
+    one markdown link, and EVERY link target on it resolves to one of the
+    removed files (relative to the document or the root). Prose or inline
+    code that merely names a removed file survives: backticks are not links
+    and cannot go dead.
     """
-    targets: set[str] = set()
-    for relative in TEMPLATE_ONLY_FILES:
-        targets.add(relative)
+    targets: set[str] = set(TEMPLATE_ONLY_FILES)
     for document in ("docs/INDEX.md", "docs/RELEASE_READINESS.md"):
         path = root / document
         if not path.is_file() or path.is_symlink():
@@ -78,18 +78,20 @@ def strip_dead_template_links(root: Path) -> None:
         kept = []
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.lstrip().startswith("- "):
-                tokens = re.findall(r"\]\(([^)#]+)\)|`([^`]+)`", line)
-                resolved = set()
-                for target in (a or b for a, b in tokens):
+                link_targets = re.findall(r"\]\(([^)#]+)\)", line)
+                dead = []
+                for target in link_targets:
                     target = target.strip().lstrip("./")
+                    names = set()
                     for base_dir in (base, root):
                         candidate = (base_dir / target).resolve()
                         try:
-                            name = candidate.relative_to(root.resolve()).as_posix()
+                            names.add(candidate.relative_to(root.resolve()).as_posix())
                         except ValueError:
                             continue
-                        resolved.add(name)
-                if resolved & targets:
+                    # Dead when any plausible resolution names a removed file.
+                    dead.append(bool(names & targets))
+                if link_targets and dead and all(dead):
                     continue
             kept.append(line)
         path.write_text("\n".join(kept) + "\n", encoding="utf-8")
