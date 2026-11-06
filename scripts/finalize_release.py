@@ -280,8 +280,8 @@ def main() -> int:
         command(
             "gh", "issue", "comment", "9", "--repo", REPO,
             "--body", (
-                f"v0.1.0 RELEASED: {url}\\n"
-                f"Exact SHA: \\u0060{sha}\\u0060\\n"
+                f"v0.1.0 RELEASED: {url}\n"
+                f"Exact SHA: `{sha}`\n"
                 "Tag: signed and GitHub Verified. main rules active. "
                 "Owner waiver of final independent review and owner-reported "
                 "HOST/E4 documented in docs/release/OWNER_RELEASE_APPROVAL.md."
