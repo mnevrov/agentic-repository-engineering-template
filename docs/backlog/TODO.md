@@ -22,6 +22,7 @@
 
 ## Done
 
+- [x] TEMPLATE-17 — owner approval, signed-release finalizer and exact-SHA release gates ready; actual release requires admin-scoped GitHub authentication.
 - [x] TEMPLATE-16 — подготовка v0.1.0: Pilot E3 CI PASS, ruleset recipe, release notes/playbook; production release остаётся BLOCKED в issue #9.
 - [x] TEMPLATE-15 — remediation of release audit telemetry provenance P1/P2/P3; CI `a3bf31a` PASS; release gate #9 separate.
 - [x] Создан базовый инженерный каркас репозитория.
