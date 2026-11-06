@@ -424,6 +424,121 @@ class TelemetryCutoverTests(unittest.TestCase):
         self.git("checkout", "-q", "-")
 
 
+    def build_pre_ledger_repo(self):
+        """Downstream-shaped repo whose ROOT COMMIT has no ledger at all —
+        the exact shape the template's own first commits started from."""
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        repo = Path(temp.name)
+
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=repo, check=True,
+                                  capture_output=True, text=True)
+        git("init", "-q")
+        git("config", "user.email", "ci@example.invalid")
+        git("config", "user.name", "CI")
+        (repo / "src").mkdir()
+        (repo / "src" / "app.txt").write_text("hello\n")
+        git("add", ".")
+        git("commit", "-qm", "root without ledger")
+        root = git("rev-parse", "HEAD").stdout.strip()
+        git("remote", "add", "origin", self.DOWNSTREAM_ORIGIN)
+        return repo, git, root
+
+    def test_pre_ledger_base_cannot_wipe_inherited_template_rows(self):
+        # Round-4 F1: base an ancestor from BEFORE the ledger existed and the
+        # shape-only exemption would license wiping TEMPLATE-* rows committed
+        # inside the range. The exemption requires a verified cutover, and no
+        # verified cutover exists for a lineageless ledger introduction.
+        repo, git, root = self.build_pre_ledger_repo()
+        ledger = repo / ".ai" / "telemetry" / "cycles.jsonl"
+        ledger.parent.mkdir(parents=True)
+        ledger.write_text(row("TEMPLATE-1") + row("TEMPLATE-2") + row("TEMPLATE-3"))
+        git("add", ".")
+        git("commit", "-qm", "template rows")
+        (repo / ".ai" / "project-initialized").write_text(
+            "project_name=Pilot\nbootstrap_id=PROJECT-BOOTSTRAP\n")
+        ledger.write_text(row("PROJECT-BOOTSTRAP"))
+        (repo / "src" / "app.txt").write_text("wiped\n")
+        git("add", ".")
+        git("commit", "-qm", "wipe ledger to a fabricated project row")
+        self.assertFalse(append.check(repo, root)[0])
+        self.assertFalse(required.check(repo, root)[0])
+
+    def test_pre_ledger_root_honest_project_ledger_still_passes(self):
+        # The no-over-refusal side: a ledger introduced at no-template-rows
+        # root and grown with genuine PROJECT rows against that root passes
+        # the ordinary append-only rules without any exemption.
+        repo, git, root = self.build_pre_ledger_repo()
+        ledger = repo / ".ai" / "telemetry" / "cycles.jsonl"
+        ledger.parent.mkdir(parents=True)
+        ledger.write_text(row("PROJECT-1"))
+        (repo / "src" / "app.txt").write_text("first project change\n")
+        git("add", ".")
+        git("commit", "-qm", "first project commit")
+        self.assertTrue(append.check(repo, root)[0])
+        self.assertTrue(required.check(repo, root)[0])
+
+    def test_multiple_origin_urls_refuse_identity(self):
+        # remote.origin.url is multi-valued: transport uses the FIRST value
+        # while `git config --get` reports the LAST, so no single value can be
+        # trusted as the provenance identity. Ambiguity fails closed.
+        self.git("remote", "set-url", "origin",
+                 "https://github.com/example/other-project.git")
+        self.git("config", "--add", "remote.origin.url", self.DOWNSTREAM_ORIGIN)
+        self.assertIsNone(cutover.trusted_repository_identity(self.repo))
+        self.initialize()
+        self.check(False, False)
+
+    def test_identity_preserving_insteadof_alias_allows_cutover(self):
+        # A personal `url.git@github.com:.insteadOf https://github.com/`
+        # alias (typically global, invisible to repo-local config scans)
+        # rewrites the fetch URL but preserves host/owner/repo; asking Git
+        # itself for the effective target keeps the provenance verdict
+        # identical, so first-bootstrap over-refusal must not happen.
+        self.git("config", "url.git@github.com:.insteadOf", "https://github.com/")
+        self.initialize()
+        self.check(True, True)
+
+    def test_identity_changing_insteadof_refuses_cutover(self):
+        # An alias that retargets host or owner masks the real fetch target:
+        # the effective identity differs from the raw one and is unverifiable.
+        self.git("config", "url.https://mirror.example/retarget/.insteadOf",
+                 "https://github.com/example/")
+        self.initialize()
+        self.check(False, False)
+
+    def test_grafts_file_refuses_cutover(self):
+        # A legacy .git/info/grafts file signals fabricated lineage. Even
+        # where modern git ignores its content, lineage integrity cannot be
+        # asserted while it exists, and history scans must not run over a
+        # repository whose owner intended to rewrite it.
+        self.initialize()
+        grafts = self.repo / ".git" / "info" / "grafts"
+        grafts.parent.mkdir(exist_ok=True)
+        grafts.write_text(self.base + "\n", encoding="utf-8")
+        try:
+            self.check(False, False)
+        finally:
+            grafts.unlink()
+
+    def test_directory_ledger_path_fails_closed(self):
+        # A tree at the ledger path would make `git show` print a child
+        # listing (which passed JSON parsing would then see as rows); the
+        # gates must report an explicit structural error, not rows and not
+        # an unhandled traceback.
+        self.telemetry.unlink()
+        self.telemetry.mkdir()
+        (self.telemetry / "inner.txt").write_text("nope\n")
+        self.commit("directory at ledger path")
+        ok_append, message_append = append.check(self.repo, self.base)
+        ok_required, message_required = required.check(self.repo, self.base)
+        self.assertFalse(ok_append)
+        self.assertFalse(ok_required)
+        self.assertIn("not a regular file", message_append)
+        self.assertIn("not a regular file", message_required)
+
+
 class RepositoryIdentityTests(unittest.TestCase):
     def parse(self, url):
         return cutover.repository_identity(url)

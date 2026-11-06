@@ -6,7 +6,13 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from telemetry_cutover import UNSAFE_REF, bootstrap_cutover, committed_ledger, history_monotonic
+from telemetry_cutover import (
+    UNSAFE_REF,
+    bootstrap_cutover,
+    committed_ledger,
+    history_monotonic,
+    ledger_lines_at_ref,
+)
 from telemetry_lib import load_jsonl
 
 TELEMETRY_REL = Path(".ai/telemetry/cycles.jsonl")
@@ -21,13 +27,10 @@ def check(repo: Path, base_ref: str) -> tuple[bool, str]:
         return False, f"Refusing unsafe telemetry base ref: {base_ref!r}"
     if git(repo, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}").returncode != 0:
         return False, f"Invalid telemetry base ref: {base_ref}"
-    previous = git(repo, "show", f"{base_ref}:{TELEMETRY_REL.as_posix()}")
-    if previous.returncode == 0:
-        old = previous.stdout.splitlines()
-    elif "does not exist in" in previous.stderr or "exists on disk, but not in" in previous.stderr:
-        old = []
-    else:
-        return False, "Could not retrieve base telemetry for comparison"
+    try:
+        old = ledger_lines_at_ref(repo, base_ref) or []
+    except RuntimeError as exc:
+        return False, str(exc)
 
     # Evaluate the ledger committed at HEAD (the CI shape); a diverged
     # worktree copy is a fail-closed error, never a silent local pass.

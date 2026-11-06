@@ -6,9 +6,12 @@ any unverifiable condition fails closed:
 
 1. Shape (cheap, checked first): the base ledger is source-only ``TEMPLATE-*``
    history and the new ledger holds no ``TEMPLATE-*`` rows.
-2. Verifiable history: full (non-shallow) clone, no ``url.*.insteadOf``
-   rewriting that could mask the real fetch target, no ``refs/replace``
-   grafts that could fabricate ancestry.
+2. Verifiable history: full (non-shallow) clone, no ``refs/replace`` grafts or
+   legacy ``.git/info/grafts`` that could fabricate ancestry, and no
+   ``url.*.insteadOf`` rewriting that would change the origin's identity
+   (host/owner/repo). Identity-preserving aliases at any scope (e.g. the
+   common personal SSH-instead-of-HTTPS alias) keep the provenance verdict
+   identical and are tolerated.
 3. Provenance identity: ``remote.origin.url`` must parse, after
    canonicalization (percent-decoded before case folding, no dot-segments,
    dotted host, >=2 path segments), to a hosted ``host/owner/repo`` identity
@@ -22,14 +25,18 @@ any unverifiable condition fails closed:
    content; the marker is absent in ``base_ref`` and in the unique root
    commit; EVERY commit strictly between ``base_ref`` and HEAD carries the
    marker; and ``history_monotonic`` scans the range over ``--full-history``
-   in two regimes: a cutover-shaped final ledger exempts intermediate
-   TEMPLATE-* ledgers (the cutover commit replaces them by definition) while
-   project ledgers must be order-preserving subsequences of the final one;
-   any other final ledger (the template's own regime, ordinary appends) gets
-   no exemption at all, and mid-range deletion of the ledger file always
-   fails. Presenting an older pre-bootstrap ancestor as the base therefore
-   can never re-open the exception after the first project commit, and
-   mid-history deletions stay append-only violations.
+   in two regimes: the cutover exemption for intermediate TEMPLATE-* ledgers
+   (the cutover commit replaces them by definition) is granted only when the
+   scan runs with a VERIFIED cutover verdict, never from the final ledger's
+   shape alone; otherwise every intermediate ledger must be an order-
+   preserving subsequence of the final one, so a base predating the ledger's
+   introduction never licenses wiping template rows while ordinary appends
+   pass. Any other final ledger (the template's own regime, ordinary appends,
+   or an unverified cutover-shaped one) gets no exemption at all, and
+   mid-range deletion of the ledger file always fails. Presenting an older
+   pre-bootstrap ancestor as the base therefore can never re-open the
+   exception after the first project commit, and mid-history deletions stay
+   append-only violations.
 5. Birth-from-template: the unique root commit must carry the ledger with the
    template's source-only ``TEMPLATE-*`` rows — the signature of a repository
    created from the template contents (GitHub 'Create from template' and the
@@ -159,12 +166,22 @@ def source_url_matches(url: str) -> bool:
     return _strip_git_suffix(tail) == SOURCE_REPOSITORY_NAME
 
 
-def origin_url(repo: Path) -> str:
+def origin_url(repo: Path) -> str | None:
+    """The single configured remote.origin.url, or None.
+
+    ``git config --get`` shows only the LAST value while fetch/push use the
+    FIRST, so a multi-valued url gives readers and transport an ambiguous
+    effective target. Ambiguity is unverifiable provenance: no identity."""
     proc = subprocess.run(
-        ["git", "config", "--get", "remote.origin.url"],
+        ["git", "config", "--get-all", "remote.origin.url"],
         cwd=repo, capture_output=True, text=True
     )
-    return proc.stdout.strip() if proc.returncode == 0 else ""
+    if proc.returncode != 0:
+        return None
+    values = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    if len(values) != 1:
+        return None
+    return values[0]
 
 
 def _insteadof_bases(config_entries: list[tuple[str, str]]) -> list[str]:
@@ -175,19 +192,29 @@ def _insteadof_bases(config_entries: list[tuple[str, str]]) -> list[str]:
 
 
 def _origin_rewritten(repo: Path, url: str) -> bool:
+    """True when url.*.insteadOf rewriting changes the origin's identity.
+
+    The check asks Git itself what the effective fetch target is
+    (``ls-remote --get-url``), so aliases at ANY scope — including global
+    config this repository cannot enumerate selectively — are covered.
+    A rewrite that preserves host/owner/repo (e.g. the common personal
+    ``url.git@github.com:.insteadOf https://github.com/`` SSH convenience
+    alias) keeps the provenance verdict identical and is tolerated; a rewrite
+    that changes host, owner or repository masks the real fetch target and
+    makes identity unverifiable."""
     proc = subprocess.run(
-        ["git", "config", "--list", "--null"],
+        ["git", "ls-remote", "--get-url", url],
         cwd=repo, capture_output=True, text=True
     )
     if proc.returncode != 0:
         return True
-    entries: list[tuple[str, str]] = []
-    for record in proc.stdout.split("\0"):
-        if not record:
-            continue
-        key, _, value = record.partition("\n")
-        entries.append((key.lower(), value))
-    return any(url.startswith(base) for base in _insteadof_bases(entries))
+    effective = proc.stdout.strip()
+    raw_identity = repository_identity(url)
+    if raw_identity is None:
+        # Nothing downstream trusts an unparsable raw url, but a rewrite away
+        # from it is still masking: treat any effective change as unverifiable.
+        return effective != url
+    return repository_identity(effective) != raw_identity
 
 
 def trusted_repository_identity(repo: Path) -> str | None:
@@ -197,6 +224,8 @@ def trusted_repository_identity(repo: Path) -> str | None:
     or unparsable origin, or an origin subject to url.*.insteadOf rewriting.
     """
     url = origin_url(repo)
+    if url is None:
+        return None
     identity = repository_identity(url)
     if identity is None:
         return None
@@ -210,20 +239,27 @@ def committed_ledger(repo: Path) -> list[str]:
 
     Gates must evaluate the exact commit under review (the CI shape); an
     uncommitted ledger rewrite locally must not make a dirty checkout look
-    greener than the commit it claims to verify.
+    greener than the commit it claims to verify. A tree/symlink/gitlink at the
+    ledger path is rejected by the mode-checked read, never parsed as rows.
     """
-    proc = _git(repo, "show", f"HEAD:{TELEMETRY_REL}")
-    if proc.returncode != 0:
-        if "does not exist in" in proc.stderr or "exists on disk, but not in" in proc.stderr:
-            committed = ""
-        else:
+    kind = _ledger_kind_at(repo, "HEAD")
+    if kind is not None and kind != "blob":
+        raise RuntimeError(
+            f"telemetry ledger at HEAD is a {kind}, not a regular file"
+        )
+    committed = ""
+    if kind == "blob":
+        proc = _git(repo, "show", f"HEAD:{TELEMETRY_REL}")
+        if proc.returncode != 0:
             raise RuntimeError(f"cannot read HEAD telemetry: {proc.stderr.strip()}")
-    else:
         committed = proc.stdout
     worktree_path = repo / TELEMETRY_REL
     if worktree_path.is_symlink():
         raise RuntimeError("telemetry ledger must not be a symlink")
-    worktree = worktree_path.read_text(encoding="utf-8") if worktree_path.exists() else ""
+    try:
+        worktree = worktree_path.read_text(encoding="utf-8") if worktree_path.exists() else ""
+    except OSError as exc:
+        raise RuntimeError(f"telemetry ledger in the worktree is unreadable: {exc}") from exc
     if worktree != committed:
         raise RuntimeError(
             "telemetry ledger in the worktree differs from HEAD; commit or revert it first"
@@ -294,14 +330,39 @@ def _valid_marker_content(text: str) -> bool:
     )
 
 
-def _telemetry_lines_at(repo: Path, ref: str) -> list[str] | None:
-    """Ledger lines committed at `ref`, or None when the path is absent."""
-    proc = _git(repo, "show", f"{ref}:{TELEMETRY_REL}")
-    if proc.returncode == 0:
-        return proc.stdout.splitlines()
-    if "does not exist in" in proc.stderr or "exists on disk, but not in" in proc.stderr:
+def _ledger_kind_at(repo: Path, ref: str) -> str | None:
+    """'blob'/'tree'/'symlink'/'submodule'/'ambiguous' at TELEMETRY_REL, or None.
+
+    NON-recursive so a directory at the ledger path cannot masquerade as a
+    file whose `git show` output is a child listing, never real ledger rows."""
+    proc = _git(repo, "ls-tree", ref, "--", TELEMETRY_REL)
+    if proc.returncode != 0:
+        raise RuntimeError(f"cannot inspect telemetry at {ref}: {proc.stderr.strip()}")
+    entries = [line for line in proc.stdout.splitlines() if line.strip()]
+    if not entries:
         return None
-    raise RuntimeError(f"cannot read telemetry at {ref}: {proc.stderr.strip()}")
+    if len(entries) > 1:
+        return "ambiguous"
+    return {"100644": "blob", "100755": "blob", "120000": "symlink",
+            "160000": "submodule"}.get(entries[0].split()[0], "special")
+
+
+def ledger_lines_at_ref(repo: Path, ref: str) -> list[str] | None:
+    """Ledger lines committed at `ref`, or None when the path is absent.
+
+    Non-blob shapes (tree/symlink/gitlink) fail closed with an explicit
+    error instead of returning a listing as fabricated rows."""
+    kind = _ledger_kind_at(repo, ref)
+    if kind is None:
+        return None
+    if kind != "blob":
+        raise RuntimeError(
+            f"telemetry ledger at {ref} is a {kind}, not a regular file"
+        )
+    proc = _git(repo, "show", f"{ref}:{TELEMETRY_REL}")
+    if proc.returncode != 0:
+        raise RuntimeError(f"cannot read telemetry at {ref}: {proc.stderr.strip()}")
+    return proc.stdout.splitlines()
 
 
 def _root_commit(repo: Path) -> str | None:
@@ -323,9 +384,20 @@ def _is_shallow(repo: Path) -> bool:
 
 def _has_replace_refs(repo: Path) -> bool:
     # git replace grafts can fabricate a root/marker ancestry locally; any
-    # non-empty refs/replace namespace makes lineage unverifiable.
+    # non-empty refs/replace namespace makes lineage unverifiable. Legacy
+    # .git/info/grafts is honored by older git and is equally invisible to
+    # refs, so its presence (non-empty) is treated the same way.
     proc = _git(repo, "for-each-ref", "refs/replace/")
-    return proc.returncode != 0 or bool(proc.stdout.strip())
+    if proc.returncode != 0 or bool(proc.stdout.strip()):
+        return True
+    proc = _git(repo, "rev-parse", "--git-dir")
+    if proc.returncode != 0:
+        return True
+    git_dir = Path(proc.stdout.strip())
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    grafts = git_dir / "info" / "grafts"
+    return grafts.is_file() and bool(grafts.read_bytes().strip())
 
 
 def _unverifiable_new(rows: list[str]) -> bool:
@@ -360,40 +432,49 @@ def _absent_at(repo: Path, commit: str) -> bool:
             or "exists on disk, but not in" in proc.stderr)
 
 
-def history_monotonic(repo: Path, base_ref: str, new: list[str]) -> bool:
+def history_monotonic(repo: Path, base_ref: str, new: list[str],
+                      verified_cutover: bool = False) -> bool:
     """True when no ledger committed between base_ref and HEAD contradicts
     the final ledger.
 
     Every commit touching the ledger is inspected over --full-history (merge
     simplification must not prune an 'evil merge'). Two regimes:
 
-    - Cutover-shaped final ledger (no TEMPLATE-* rows, all rows valid): the
-      source-only TEMPLATE-* history is legitimately replaced at the cutover
-      commit itself, so intermediate TEMPLATE-* ledgers are exempt; every
-      project ledger in the range must be an order-preserving subsequence of
-      the final ledger.
-    - Any other final ledger (the source template's own regime, and normal
-      project appends): NO exemption — every intermediate ledger, source-only
-      or not, must be a subsequence of the final one. A TEMPLATE-* row added
+    - VERIFIED first-bootstrap cutover (``verified_cutover``, which callers
+      must set only from a successful ``bootstrap_cutover`` verdict, never
+      from the final ledger's shape): the source-only TEMPLATE-* history is
+      legitimately replaced at the cutover commit itself, so intermediate
+      TEMPLATE-* ledgers are exempt; every project ledger in the range must
+      be an order-preserving subsequence of the final ledger.
+    - Everything else (the source template's own regime, normal project
+      appends, and any cutover-shaped final ledger whose provenance was NOT
+      verified): NO exemption — every intermediate ledger, source-only or
+      not, must be a subsequence of the final one. A TEMPLATE-* row added
       and later deleted inside the range therefore fails even when the base
-      prefix is restored byte-exactly.
+      prefix is restored byte-exactly, and pointing a base at an ancestor
+      from before the ledger existed never licenses wiping template rows.
 
     A ledger that existed at some commit in the range but is absent at a
-    later one is a deletion, not an exemption (unless the final ledger is
-    cutover-shaped, where the wholesale reset is the point).
+    later one is a deletion, not an exemption (unless at a verified cutover,
+    where the wholesale reset is the point).
     Malformed `base_ref` values are a violation of the append-only contract
-    itself.
+    itself. Lineage integrity (full history, no replace/graft fabrication)
+    is re-verified here as well: both gates rely on this scan, and grafts or
+    a shallow boundary could fabricate or prune range commits in either
+    regime.
     """
     if not base_ref or UNSAFE_REF.search(base_ref):
+        return False
+    if _is_shallow(repo) or _has_replace_refs(repo):
         return False
     touching = _git(repo, "rev-list", "--full-history", "--reverse",
                     f"{base_ref}..HEAD", "--", TELEMETRY_REL)
     if touching.returncode != 0:
         return False
-    cutover_shaped = bool(new) and not _unverifiable_new(new)
+    cutover_shaped = verified_cutover and bool(new) and not _unverifiable_new(new)
     for commit in touching.stdout.split():
         try:
-            rows = _telemetry_lines_at(repo, commit)
+            rows = ledger_lines_at_ref(repo, commit)
         except RuntimeError:
             return False
         if rows is None:
@@ -453,7 +534,7 @@ def bootstrap_cutover(repo: Path, base_ref: str, old: list[str], new: list[str])
     root = _root_commit(repo)
     if root is None or _marker_exists_at(repo, root):
         return False
-    root_rows = _telemetry_lines_at(repo, root)
+    root_rows = ledger_lines_at_ref(repo, root)
     if root_rows is None or not source_only(root_rows):
         return False
 
@@ -469,4 +550,4 @@ def bootstrap_cutover(repo: Path, base_ref: str, old: list[str], new: list[str])
     for commit in between.stdout.split():
         if not _marker_exists_at(repo, commit):
             return False
-    return history_monotonic(repo, base_ref, new)
+    return history_monotonic(repo, base_ref, new, verified_cutover=True)

@@ -38,7 +38,7 @@ def source_checkout(root: Path) -> bool:
     # A trustworthy hosted identity of the source template, or any raw origin
     # URL ending with the source repository path (covers local-path clones).
     return source_identity_matches(trusted_repository_identity(root)) or \
-        source_url_matches(origin_url(root))
+        source_url_matches(origin_url(root) or "")
 
 
 def validate_task_id(value: str) -> str:

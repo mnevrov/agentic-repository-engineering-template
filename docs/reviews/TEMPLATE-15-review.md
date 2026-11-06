@@ -69,3 +69,18 @@ Reviewer's own closure confirmations (round-2 items): R2-3, R2-4, R2-5, R2-6, R2
 ## Round 4 — resubmission
 
 Round 4 re-reviews the fixed code with fresh context; verdict appended below.
+
+### Round 4 — VERDICT: REVISE (no P0; 1 P1, four mediums recorded below as P2, F5 as P3)
+
+Fresh-context reviewer at commit `dd4b157`; every finding independently reproduced by the author first (`/tmp/opencode/audit-repro2/round4-verify.sh`, `round4b-f1.sh`, `f5-repro.sh`) before implementing:
+
+| # | Sev | Finding (CONFIRMED) | Remediation + regression |
+|---|-----|----------------------|--------------------------|
+| R4-1 | P1 | `history_monotonic` granted the cutover exemption from the final ledger's SHAPE alone. Base an ancestor from before the ledger existed — e.g. the template's own root `20b3cf3…`, which has no ledger — and the endpoint prefix check became vacuous: a 40-row TEMPLATE-* wipe to one fabricated project row passed BOTH gates with a hosted-looking origin | The exemption requires `verified_cutover=True`, which callers set only from a successful `bootstrap_cutover` verdict; shape alone never grants it. Regressions `test_pre_ledger_base_cannot_wipe_inherited_template_rows` (root WITHOUT a ledger — the shape earlier tests lacked) + `test_pre_ledger_root_honest_project_ledger_still_passes` (no over-refusal) |
+| R4-2 | P2 | Multi-valued `remote.origin.url`: transport fetches the FIRST value, `git config --get` reports the LAST — a deny-listed template URL first with a friendly URL second gave the gate a usable identity | `--get-all`, more than one value → no identity; regression `test_multiple_origin_urls_refuse_identity` |
+| R4-3 | P2 | insteadOf check over-refused: a common personal `url.git@github.com:.insteadOf https://github.com/` (typically global, and repo-local `git config --list` cannot distinguish scope) blocked legitimate first-bootstrap forever | `_origin_rewritten` asks Git itself for the effective target (`ls-remote --get-url`) and refuses only when the rewrite changes host/owner/repo identity; regressions for the tolerated alias (cutover still PASSes) and an identity-changing alias (refused) |
+| R4-4 | P2 | Shallow/replace-refs integrity was checked only inside `bootstrap_cutover`; the standalone `history_monotonic` scan (the required-gate's second pass) ran over grafted/shallow ranges too, and legacy `.git/info/grafts` was never inspected | Checks hoisted into `history_monotonic` (both gates inherit them) + `.git/info/grafts` presence treated as fabricated lineage; ADR overclaim about which layer enforces what corrected; regression `test_grafts_file_refuses_cutover` |
+| R4-5 | P3 | A tree at the ledger path made `git show` print a child listing (`['tree …','','inner.txt']`) and the worktree read crashed with an unhandled `IsADirectoryError` traceback | Mode-checked non-recursive ledger reads (`_ledger_kind_at`): tree/symlink/gitlink → explicit 'not a regular file' error from both gates; regression `test_directory_ledger_path_fails_closed` |
+
+**Post-round-4 verification (author):** 138 template tests OK; F1 faithful wipe (round4b) and pre-ledger-root variant blocked rc=1 both gates; F2 identity None; F3 alias tolerated rc=0 and retargeting alias blocked; F5 clean structural error; full round-1/2/3 batteries re-run all blocked; downstream CI smoke PASS; real Pilot boundary replay PASS; validate-telemetry/repo-doctor/check-task-state/opencode-acceptance PASS; repo's own gates vs `2043f6d` PASS.
+
