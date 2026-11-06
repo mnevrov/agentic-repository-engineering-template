@@ -1,6 +1,6 @@
 # Release playbook — v0.1.0
 
-**Status:** PREPARED / BLOCKED. Не исполнять выпуск до выполнения всех hard gate ниже. Исходный код TEMPLATE-15 закрыт, новые adversarial-раунды не планируются.
+**Status:** OWNER APPROVED / PUBLISH BLOCKED (технические условия ещё не выполнены). Не исполнять выпуск до выполнения всех hard gate ниже. Исходный код TEMPLATE-15 закрыт, новые adversarial-раунды не планируются.
 
 ## 1. Факты на 6 ноября 2026
 
@@ -9,7 +9,7 @@
 - Pilot: SHA `d2fdf020be2a465549f31896c84e6be02132eb36`, [run 42198531178](https://github.com/mnevrov/agentic-template/actions/runs/42198531178), PASS: 7 unit tests, 2 isolated Git-backed integration tests, 96 template tests (записано в Actions log). Это E3 компоненты, не HOST/LLM acceptance.
 - Release tag `v0.1.0` и GitHub Release отсутствуют; `release/v0.1.0-rc.1` не менять.
 - GitHub connector, доступный в этом workflow, не поддерживает POST rulesets, создание signed tag или GitHub Release. **Загруженный JSON сам по себе ничего не защищает.**
-- Final independent *release* review exact SHA остаётся отдельным gate. Принятое TEMPLATE-15 adversarial review не выдавать за него.
+- Независимый финальный *release* review exact SHA **не проводился**: владелец принял явный waiver; см. `docs/release/OWNER_RELEASE_APPROVAL.md`. Принятое TEMPLATE-15 adversarial review не выдавать за новое независимое ревью.
 
 ## 2. Защитить main (нужны администраторские права репозитория)
 
@@ -34,8 +34,8 @@ gh api repos/mnevrov/agentic-repository-engineering-template/rules/branches/main
 - [x] TEMPLATE-15 remediation закрыта, 144 теста в историческом отчёте, source exact-code CI PASS.
 - [x] Pilot CLI/Git/telemetry component integration E3 PASS (отдельный GitHub Actions run).
 - [ ] Проверено, что ruleset/branch protection реально **active** для `main`, запрет удаления/force-push, PR и три required checks.
-- [ ] Есть отдельный независимый финальный release verdict именно по **новому** final SHA (можно документировать risk waiver, но нельзя скрыто превращать self-review в independent review). Если владелец явно принимает waiver — указать в issue #9 вместе с риском и SHA.
-- [ ] HOST/LLM acceptance согласно issue #9 либо отдельная обоснованная owner risk acceptance с перечнем НЕ проверенных сценариев. Не переименовывать CI в HOST PASS.
+- [x] Владелец разрешил выпуск и отказался от дополнительного финального независимого review, **не выдавая его за выполненный**; [решение](OWNER_RELEASE_APPROVAL.md). Итоговый SHA будет определён автоматически при подписании тега.
+- [x] E4 owner-reported; отсутствие свежего независимого HOST/LiteLLM прогона раскрыто и принято владельцем в [решении](OWNER_RELEASE_APPROVAL.md). Не переименовывать CI в HOST PASS.
 - [ ] На финальном SHA прошли все три CI jobs, включая `doctor` и обе версии OpenCode.
 - [ ] Issue #9 обновлён фактическими ссылками и явным решением о релизе.
 
@@ -68,10 +68,10 @@ git tag -v v0.1.0  # обязательна проверка подписи
 git push origin refs/tags/v0.1.0
 gh release create v0.1.0 --verify-tag \
   --title "Agentic Repository Engineering Template v0.1.0" \
-  --notes-file docs/releases/v0.1.0-DRAFT.md
+  --notes-file docs/releases/v0.1.0.md
 gh release view v0.1.0
 ```
 
 **Важно:** подписанный тег — отдельный Git-объект. GitHub Release, созданный на голом имени тега без проверки подписи, не заменяет этот gate. `gh release create --verify-tag` требует существования удалённого тега, а не создаёт signed tag.
 
-После успешного выпуска обновить `docs/RELEASE_READINESS.md` новым PR и теговыми ссылками; не переписывать уже выпущенный тег. Сохранить исторический `release/v0.1.0-rc.1` без изменений.
+После успешного выпуска записать точный SHA, Verified tag и Release URL в issue #9; закрыть его только после проверки GitHub. Документацию можно актуализировать последующим PR, но не переписывать выпущенный тег. Сохранить исторический `release/v0.1.0-rc.1` без изменений.

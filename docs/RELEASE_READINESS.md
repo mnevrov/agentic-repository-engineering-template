@@ -1,6 +1,6 @@
 # Release readiness — OpenCode v2 template
 
-**Статус: STABILIZATION. Production release v0.1.0 ещё не одобрен.**
+**Статус: OWNER APPROVED / PUBLISH BLOCKED.** Владелец разрешил публикацию v0.1.0, но фактический выпуск по-прежнему требует действующего Ruleset и Verified signed tag.
 
 Технический CI, отчёт владельца о HOST/Pilot и независимый release-review — разные уровни доказательств.
 
@@ -10,7 +10,7 @@
 
 Отдельный Pilot `mnevrov/agentic-template` смержил [PR #2](https://github.com/mnevrov/agentic-template/pull/2) с настоящим isolated CLI/Git/telemetry `make test-integration`; exact-main `d2fdf020be2a465549f31896c84e6be02132eb36`, [Actions 42198531178](https://github.com/mnevrov/agentic-template/actions/runs/42198531178) PASS (`Ran 2 tests ... OK`). Это E3 компоненты, **не** реальные OpenCode/LiteLLM E4 и не сквозной агентный сценарий.
 
-На момент проверки `main.protected=false`, repository rulesets `[]`, tags `[]`, releases `[]`. GitHub connector не предоставляет записи Rulesets или создания signed tag / Release. Предусмотрены [ruleset JSON](release/MAIN_RULESET.json), [release playbook](release/RELEASE_PLAYBOOK.md) и [v0.1.0 draft notes](releases/v0.1.0-DRAFT.md), но эти материалы сами по себе ничего не активируют.
+На момент проверки `main.protected=false`, repository rulesets `[]`, tags `[]`, releases `[]`. GitHub connector не предоставляет записи Rulesets или создания signed tag / Release. Предусмотрены [ruleset JSON](release/MAIN_RULESET.json), [release playbook](release/RELEASE_PLAYBOOK.md) и [v0.1.0 final notes](releases/v0.1.0.md), но эти материалы сами по себе ничего не активируют.
 
 ## Матрица gate-evidence на 2026-11-06
 
@@ -24,9 +24,9 @@
 | Pilot /develop, Human Gate, tests, reviewer, new-session recovery | `mnevrov/agentic-template` | PASS по отчёту владельца; эти HOST-события не являются CI-аттестацией |
 | Pilot PR и post-merge Actions | [run 42023246757](https://github.com/mnevrov/agentic-template/actions/runs/42023246757), [run 42024296100](https://github.com/mnevrov/agentic-template/actions/runs/42024296100), merge `c23cbbb9c51d2a988a233373882d0b2d512afebf` | Ранее подтверждено владельцем; доступен `mnevrov/agentic-template`, но эти CI не заменяют HOST-доказательства |
 | Pilot CLI/Git/telemetry local integration (E3) | [Pilot PR #2](https://github.com/mnevrov/agentic-template/pull/2), [post-merge CI 42198531178](https://github.com/mnevrov/agentic-template/actions/runs/42198531178) | **PASS** — 2 настоящих subprocess/Git интеграционных теста в изолированном репозитории; external OpenCode/LLM E4 остаётся недоказанным |
-| Final independent review точного release SHA | issue #9 / отдельный release verdict | **NOT PERFORMED**; дополнительные раунды TEMPLATE-15 отменены владельцем, но это не равнозначно release-approval |
+| Final independent review точного release SHA | [OWNER_RELEASE_APPROVAL.md](release/OWNER_RELEASE_APPROVAL.md) / issue #9 | **NOT PERFORMED, OWNER WAIVER ACCEPTED**; независимая проверка не подменяется самопроверкой |
 | Защита main | GitHub `branches/main` показывает `protected=false`; `rulesets` пусты (проверка 2026-11-06) | **BLOCKED**: на момент закрытия TEMPLATE-15 защита не настроена; доступный GitHub connector не предоставляет запись branch rules |
-| Версионированный v0.1.0 | [playbook](release/RELEASE_PLAYBOOK.md), [draft notes](releases/v0.1.0-DRAFT.md); GitHub tags/releases пусты | **NOT CREATED** — ожидает активной защиты main и явного release approval |
+| Версионированный v0.1.0 | [playbook](release/RELEASE_PLAYBOOK.md), [final notes](releases/v0.1.0.md); GitHub tags/releases пусты | **NOT CREATED** — владелец одобрил, ожидает фактической защиты main и Verified signed tag |
 
 **Уровни evidence:** E1 — static; E2 — unit/contract; E3 — integration/e2e; E4 — target/prod-like; E5 — эксплуатационное повторение. Один факт green CI **не** повышает unit-tests до E3.
 
@@ -44,7 +44,7 @@
 2. Запустить независимое ревью **в новой чистой сессии**, передав final SHA, полный diff с `61e96b...`, Task/AC, фактические CI-результаты, архитектурные инварианты, diff конфигураций OpenCode и прав, bootstrap + telemetry security. Зафиксировать verdict и P0/P1/P2/P3 в **GitHub PR review или неизменяемом комментарии к issue #9**, явно указав проверенный точный SHA. При необходимости можно зеркалировать результат в `docs/reviews/RELEASE-0.1.0-final-review.md`, но его коммит меняет HEAD и требует **повторной проверки нового SHA**. Самопроверка автора не считается независимой.
 3. Настроить для `main` GitHub Branch Protection или Ruleset: PR перед merge, required checks `doctor`, `OpenCode v2.1.2 configuration`, `OpenCode v2.2.5 configuration`, запрет force push и удаления. Независимый approve на PR — при наличии доступного второго reviewer; для solo-owner явно фиксировать невозможность и обеспечить внешний review как ручной gate.
 4. Повторно проверить защиту через GitHub UI/API и статус Checks после настройки. Нельзя считать правила настроенными только потому, что документ описывает их.
-5. Только после final review, зелёного final-main CI и branch rules — создать **новый** release tag `v0.1.0` на одобренном SHA и GitHub Release. Старую ветку `release/v0.1.0-rc.1` не переписывать.
+5. Только после явно зафиксированного owner waiver вместо ещё одного independent review, зелёного final-main CI и реальных branch rules — создать **новый** release tag `v0.1.0` на одобренном SHA и GitHub Release. Старую ветку `release/v0.1.0-rc.1` не переписывать.
 
 ## Ограничения
 

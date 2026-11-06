@@ -133,6 +133,19 @@ def check_local_checkout(sha: str) -> None:
             raise FinalizationBlocked(f"Missing release approval record: {phrase}")
 
 
+def check_signing_prerequisites() -> None:
+    """Refuse to change remote protection before checking signing tools."""
+    if not command("git", "config", "--get", "user.name", check=False):
+        raise FinalizationBlocked("Git user.name is missing")
+    if not command("git", "config", "--get", "user.email", check=False):
+        raise FinalizationBlocked("Git user.email is missing")
+    sec = command("gpg", "--list-secret-keys", "--with-colons", check=False)
+    if not any(line.startswith("sec:") for line in sec.splitlines()):
+        raise FinalizationBlocked(
+            "No local GPG secret signing key; configure Git signing before release"
+        )
+
+
 def ensure_active_ruleset() -> None:
     rulesets = gh_api("rulesets")
     if not isinstance(rulesets, list):
@@ -250,6 +263,7 @@ def main() -> int:
     check_exact_ci(sha)
     if not NOTES_PATH.is_file():
         raise FinalizationBlocked("Missing final release notes")
+    check_signing_prerequisites()
     print(f"Exact main CI PASS: {sha}")
     if args.preflight:
         print("PRE-FLIGHT PASS: code and consent recorded; no remote changes")
@@ -260,7 +274,25 @@ def main() -> int:
     ensure_signed_verified_tag(sha)
     url = publish_and_verify(sha)
     print(f"FINAL RELEASE PUBLISHED: {url}")
-    print("Close issue #9 only after documenting final SHA, verified tag and release URL.")
+    # A release is already complete at this point. Failure to update the issue
+    # must not misreport the published release as uncreated.
+    try:
+        command(
+            "gh", "issue", "comment", "9", "--repo", REPO,
+            "--body", (
+                f"v0.1.0 RELEASED: {url}\\n"
+                f"Exact SHA: \\u0060{sha}\\u0060\\n"
+                "Tag: signed and GitHub Verified. main rules active. "
+                "Owner waiver of final independent review and owner-reported "
+                "HOST/E4 documented in docs/release/OWNER_RELEASE_APPROVAL.md."
+            ),
+        )
+        command("gh", "issue", "close", "9", "--repo", REPO,
+                "--reason", "completed")
+        print("Release gate issue #9 closed with provenance")
+    except FinalizationBlocked as exc:
+        print(f"WARNING: release exists, but issue #9 update failed: {exc}",
+              file=sys.stderr)
     return 0
 
 
