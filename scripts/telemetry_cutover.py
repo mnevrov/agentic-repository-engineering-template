@@ -10,22 +10,26 @@ any unverifiable condition fails closed:
    rewriting that could mask the real fetch target, no ``refs/replace``
    grafts that could fabricate ancestry.
 3. Provenance identity: ``remote.origin.url`` must parse, after
-   canonicalization (percent-decoded once, no dot-segments, dotted host,
-   >=2 path segments), to a hosted ``host/owner/repo`` identity whose
-   repository-name segment is neither the source template's nor an
+   canonicalization (percent-decoded before case folding, no dot-segments,
+   dotted host, >=2 path segments), to a hosted ``host/owner/repo`` identity
+   whose repository-name segment is neither the source template's nor an
    equal-named mirror of it. Missing or unparsable origins (local path,
    file://, single-segment) are not a trustworthy credential.
 4. Lineage and single use: ``base_ref`` is a well-formed, dash-free commit and
    an ancestor of HEAD; the marker is a regular-file blob committed in HEAD
-   (content read from the HEAD blob only, never the worktree) with valid
+   (content read from the HEAD blob only, never the worktree; non-recursive
+   tree lookup — a directory at the marker path is not a marker) with valid
    content; the marker is absent in ``base_ref`` and in the unique root
    commit; EVERY commit strictly between ``base_ref`` and HEAD carries the
-   marker; and every ledger committed inside the range over ``--full-history``
-   (when non-source-only) is an order-preserving subsequence of the new
-   ledger — merge-simplification cannot hide an 'evil merge' that drops rows.
-   Presenting an older pre-bootstrap ancestor as the base therefore can never
-   re-open the exception after the first project commit, and mid-history
-   deletions stay append-only violations.
+   marker; and ``history_monotonic`` scans the range over ``--full-history``
+   in two regimes: a cutover-shaped final ledger exempts intermediate
+   TEMPLATE-* ledgers (the cutover commit replaces them by definition) while
+   project ledgers must be order-preserving subsequences of the final one;
+   any other final ledger (the template's own regime, ordinary appends) gets
+   no exemption at all, and mid-range deletion of the ledger file always
+   fails. Presenting an older pre-bootstrap ancestor as the base therefore
+   can never re-open the exception after the first project commit, and
+   mid-history deletions stay append-only violations.
 5. Birth-from-template: the unique root commit must carry the ledger with the
    template's source-only ``TEMPLATE-*`` rows — the signature of a repository
    created from the template contents (GitHub 'Create from template' and the
@@ -61,14 +65,16 @@ def _strip_git_suffix(path: str) -> str:
 
 
 def _canonical_segments(path: str) -> list[str] | None:
-    """Split a URL path into canonical segments or return None.
+    """Split an already percent-decoded path into canonical segments.
 
-    Percent-escapes are decoded exactly once before splitting (git and HTTP
-    servers resolve them when fetching), then `..` segments are rejected as
-    aliasing tricks. Empty and `.` segments are dropped, and one optional
-    trailing `.git` suffix on the repository segment is stripped.
+    `..` segments are rejected as aliasing tricks (servers resolve them).
+    Empty and `.` segments are dropped, and one optional trailing `.git`
+    suffix on the repository segment is stripped. Callers must decode
+    exactly once BEFORE case folding: `%41` decodes to `A`, and lowercasing
+    first would leave decoded letters un-normalized (server-verified alias
+    of the source repository).
     """
-    segments = [segment for segment in unquote(path).split("/")
+    segments = [segment for segment in path.split("/")
                 if segment and segment != "."]
     if any(segment == ".." for segment in segments):
         return None
@@ -85,26 +91,27 @@ def repository_identity(url: str) -> str | None:
     dot, fewer than two canonical path segments, dot-segment aliasing).
     Callers must treat None as 'identity not verifiable'.
     """
-    url = url.strip().lower().rstrip("/")
+    url = url.strip().rstrip("/")
     if not url:
         return None
     if "://" in url:
         parts = urlsplit(url)
-        if parts.scheme not in _TRUSTED_SCHEMES:
+        if parts.scheme.lower() not in _TRUSTED_SCHEMES:
             return None
-        host = parts.netloc.rsplit("@", 1)[-1]
-        path = parts.path
+        host = unquote(parts.netloc.rsplit("@", 1)[-1])
+        path = unquote(parts.path)
     else:
         match = _SCP_STYLE.match(url)
         if not match:
             # A bare filesystem path is not a verifiable hosted identity.
             return None
         host, path = match.group("host"), match.group("path")
-    host = host.partition(":")[0].rstrip(".")
+        host, path = unquote(host), unquote(path)
+    host = host.partition(":")[0].rstrip(".").lower()
     segments = _canonical_segments(path)
     if not host or "." not in host or segments is None or len(segments) < 2:
         return None
-    return "/".join([host] + segments[-2:])
+    return "/".join([host] + [segment.lower() for segment in segments[-2:]])
 
 
 def source_identity_matches(identity: str | None) -> bool:
@@ -131,19 +138,16 @@ def source_url_matches(url: str) -> bool:
     still carries the full template history and must never be initialized in
     place. Downstream projects rename the repository before init.
     """
-    url = url.strip().lower().rstrip("/")
+    url = url.strip().rstrip("/")
     if not url:
         return False
+    # Decode first, then case-fold: servers resolve percent-escapes inside
+    # otherwise-lowercase URLs (%41 == 'A' == the same repo). Over-refusing a
+    # local directory that literally contains %XX is the safe direction for
+    # this destructive guard.
+    url = unquote(url).lower()
     # `git clone /path/to/repo/.git` clones the full history too: the parent
-    # directory carries the repository name. Percent-escapes are decoded for
-    # the same reason as repository_identity: HTTP servers fetch the decoded
-    # path. A local directory literally containing `%XX` is refused init at
-    # worst — the safe direction for a destructive guard.
-    if url.endswith("/.git"):
-        url = url[: -len("/.git")]
-    if url == ".git":
-        return False
-    url = unquote(url)
+    # directory carries the repository name.
     if url.endswith("/.git"):
         url = url[: -len("/.git")]
     if url == ".git":
@@ -247,18 +251,25 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _marker_kind_at(repo: Path, ref: str) -> str | None:
-    """'blob'/'symlink'/'submodule'/… for MARKER at `ref`, or None (absent).
+    """'blob'/'symlink'/'submodule'/'tree'/… for MARKER at `ref`, or None.
 
-    Fails closed (raises) on any git error; the caller has already verified
-    `ref` is a commit.
+    NON-recursive on purpose: `ls-tree -r` descends into a directory at the
+    marker path and reports its children's modes, making a tree indistinguish-
+    able from a regular file (and `git show` of a tree prints child names that
+    can fake marker content). Fails closed (raises) on any git error; the
+    caller has already verified `ref` is a commit.
     """
-    proc = _git(repo, "ls-tree", "-r", ref, "--", MARKER)
+    proc = _git(repo, "ls-tree", ref, "--", MARKER)
     if proc.returncode != 0:
         raise RuntimeError(f"cannot inspect marker at {ref}: {proc.stderr.strip()}")
-    entry = proc.stdout.strip()
-    if not entry:
+    entries = [line for line in proc.stdout.splitlines() if line.strip()]
+    if not entries:
         return None
-    return _MARKER_MODES.get(entry.split()[0], "special")
+    if len(entries) > 1:
+        # A well-formed single-path query yields at most one entry; anything
+        # else is not a verifiable marker object.
+        return "ambiguous"
+    return _MARKER_MODES.get(entries[0].split()[0], "special")
 
 
 def _marker_exists_at(repo: Path, ref: str) -> bool:
@@ -341,34 +352,56 @@ def _is_subsequence(needle: list[str], haystack: list[str]) -> bool:
     return True
 
 
+def _absent_at(repo: Path, commit: str) -> bool:
+    proc = _git(repo, "show", f"{commit}:{TELEMETRY_REL}")
+    if proc.returncode == 0:
+        return False
+    return ("does not exist in" in proc.stderr
+            or "exists on disk, but not in" in proc.stderr)
+
+
 def history_monotonic(repo: Path, base_ref: str, new: list[str]) -> bool:
     """True when no ledger committed between base_ref and HEAD contradicts
     the final ledger.
 
-    Only commits that touched the ledger are inspected. Every such historical
-    ledger must be an order-preserving subsequence of `new`; a row that was
-    deleted, rewritten, or reordered in the middle of the range cannot be
-    hidden by driving the check against an older legitimate base, such as a
-    stale PR target branch. Source-only (TEMPLATE-*) ledgers are the normal
-    state for merge bases and pre-cutover commits and are exempt. Malformed
-    `base_ref` values are a violation of the append-only contract itself.
+    Every commit touching the ledger is inspected over --full-history (merge
+    simplification must not prune an 'evil merge'). Two regimes:
+
+    - Cutover-shaped final ledger (no TEMPLATE-* rows, all rows valid): the
+      source-only TEMPLATE-* history is legitimately replaced at the cutover
+      commit itself, so intermediate TEMPLATE-* ledgers are exempt; every
+      project ledger in the range must be an order-preserving subsequence of
+      the final ledger.
+    - Any other final ledger (the source template's own regime, and normal
+      project appends): NO exemption — every intermediate ledger, source-only
+      or not, must be a subsequence of the final one. A TEMPLATE-* row added
+      and later deleted inside the range therefore fails even when the base
+      prefix is restored byte-exactly.
+
+    A ledger that existed at some commit in the range but is absent at a
+    later one is a deletion, not an exemption (unless the final ledger is
+    cutover-shaped, where the wholesale reset is the point).
+    Malformed `base_ref` values are a violation of the append-only contract
+    itself.
     """
     if not base_ref or UNSAFE_REF.search(base_ref):
         return False
-    # --full-history is mandatory: a path-limited rev-list without it prunes
-    # merge commits whose tree equals a parent's (default history
-    # simplification), which is exactly how an 'evil merge' could hide a
-    # ledger-deleting side branch from this check.
-    touching = _git(repo, "rev-list", "--full-history", f"{base_ref}..HEAD",
-                    "--", TELEMETRY_REL)
+    touching = _git(repo, "rev-list", "--full-history", "--reverse",
+                    f"{base_ref}..HEAD", "--", TELEMETRY_REL)
     if touching.returncode != 0:
         return False
+    cutover_shaped = bool(new) and not _unverifiable_new(new)
     for commit in touching.stdout.split():
         try:
             rows = _telemetry_lines_at(repo, commit)
         except RuntimeError:
             return False
-        if rows is None or source_only(rows):
+        if rows is None:
+            # A commit that 'touches' the path but has no ledger deleted it
+            # wholesale. That is never legitimate, not even before a cutover
+            # (init-project truncates the file; it never removes it).
+            return False
+        if cutover_shaped and source_only(rows):
             continue
         if not _is_subsequence(rows, new):
             return False

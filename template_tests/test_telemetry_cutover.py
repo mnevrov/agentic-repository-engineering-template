@@ -267,6 +267,49 @@ class TelemetryCutoverTests(unittest.TestCase):
         self.commit("Symlink marker")
         self.assertFalse(append.check(self.repo, self.base)[0])
 
+    def test_source_template_cannot_delete_template_row_with_prefix_restored(self):
+        # Round-3 P0: in the source template's own regime the final ledger
+        # keeps TEMPLATE-* rows, so the cutover exemption must NOT apply to
+        # intermediate ledgers. A failed cycle added in one commit and
+        # deleted in the next — with the base prefix restored byte-exactly —
+        # must fail both gates against origin/main, as CI would run them.
+        origin_main = self.git("rev-parse", "HEAD").stdout.strip()
+        with self.telemetry.open("a") as stream:
+            stream.write(row("TEMPLATE-FAILED"))
+        (self.repo / "src/a.txt").write_text("a\n")
+        self.commit("record failed cycle")
+        lines = self.telemetry.read_text().splitlines()
+        self.telemetry.write_text("\n".join(
+            line for line in lines if "TEMPLATE-FAILED" not in line) + "\n"
+            + row("TEMPLATE-NEXT"))
+        (self.repo / "src/b.txt").write_text("b\n")
+        self.commit("delete failed row, prefix preserved")
+        self.assertFalse(append.check(self.repo, origin_main)[0])
+        self.assertFalse(required.check(self.repo, origin_main)[0])
+
+    def test_ledger_deleted_midrange_fails_closed(self):
+        # Full-ledger deletion at an interior commit, then restore of the
+        # base prefix: absent-at-later-commit is a deletion, not an exemption.
+        origin_main = self.git("rev-parse", "HEAD").stdout.strip()
+        self.telemetry.unlink()
+        (self.repo / "src/gone.txt").write_text("gone\n")
+        self.commit("ledger deleted")
+        restored = self.git("show", f"{origin_main}:.ai/telemetry/cycles.jsonl").stdout
+        self.telemetry.write_text(restored + row("TEMPLATE-NEXT"))
+        (self.repo / "src/back.txt").write_text("back\n")
+        self.commit("ledger restored plus new row")
+        self.assertFalse(append.check(self.repo, origin_main)[0])
+
+    def test_directory_marker_refuses_cutover(self):
+        # ls-tree -r would report a directory's children as regular blobs and
+        # `git show` of a tree prints child names that fake marker content.
+        (self.repo / ".ai/project-initialized").mkdir()
+        (self.repo / ".ai/project-initialized" / "project_name=").touch()
+        (self.repo / ".ai/project-initialized" / "bootstrap_id=").touch()
+        self.telemetry.write_text(row("PROJECT-BOOTSTRAP"))
+        self.commit("Directory marker")
+        self.check(False, False)
+
     def test_evil_merge_cannot_drop_committed_row(self):
         # Round-2 P0: git rev-list <range> -- path applies default history
         # simplification and prunes merge commits whose tree equals a
@@ -457,6 +500,24 @@ class RepositoryIdentityTests(unittest.TestCase):
         self.assertNotEqual(self.parse(
             "https://github.com/mnevrov/%2561gentic-repository-engineering-template"),
             "github.com/mnevrov/agentic-repository-engineering-template")
+
+    def test_uppercase_percent_escape_identity_aliases(self):
+        # %41 decodes to 'A' AFTER lowercasing would have run; decoding must
+        # precede case folding or this aliases past the source deny.
+        identity = self.parse(
+            "https://github.com/mnevrov/%41gentic-repository-engineering-template")
+        self.assertEqual(identity,
+                         "github.com/mnevrov/agentic-repository-engineering-template")
+        self.assertTrue(cutover.source_identity_matches(identity))
+        self.assertTrue(cutover.source_url_matches(
+            "https://github.com/mnevrov/%41GENTIC-REPOSITORY-ENGINEERING-TEMPLATE"))
+        self.assertTrue(cutover.source_identity_matches(self.parse(
+            "https://github.com/mnevrov/agentic-repository-engineering-templat%45")))
+        self.assertTrue(cutover.source_identity_matches(self.parse(
+            "https://%67ithub.com/mnevrov/agentic-repository-engineering-template")))
+        # Legitimate downstream names are untouched by the deny logic.
+        self.assertFalse(cutover.source_identity_matches(
+            self.parse("https://github.com/example/pilot.git")))
 
     def test_source_url_matches_covers_local_paths_and_mirrors(self):
         self.assertTrue(cutover.source_url_matches(
