@@ -31,6 +31,26 @@ Reviewer-verified positives (round 1): original audit PoC refused; legitimate do
 - Real downstream `mnevrov/agentic-template` replay at actual boundary commits: cutover PASS, post-cutover append PASS, tamper FAIL (rejected).
 - Downstream CI smoke equivalent (local): PASS incl. destructive-repeat guard and no-origin fail-closed.
 
-## Round 2 — pending
+## Round 2 — VERDICT: CHANGES_REQUIRED (9 new confirmed findings)
 
-Round 2 resubmits the fixed code to a fresh adversarial pass; verdict and any P0/P1 disposition are appended below when complete.
+Fresh-context reviewer at commit `9cb62d1`; all PoCs rebuilt from scratch. 8 of 12 round-1 findings verified CLOSED by the reviewer; the mechanism introduced to close finding 1 (`history_monotonic`) was itself defeated, plus a new identity alias class. Independently reproduced by the author before implementing (all CONFIRMED):
+
+| # | Sev | Finding (CONFIRMED by PoC, reproduced by author) | Remediation + regression |
+|---|-----|--------------------------------------------------|--------------------------|
+| R2-1 | P0 | `git rev-list base..HEAD -- path` applies default history simplification: an `-s ours` "evil merge" whose tree equals the first parent is pruned — a committed `result:"failed"` row deleted via merge resolution passed BOTH gates in the exact CI invocation (`--base-ref origin/main`); the same blind spot re-opened the cutover from a stale root base | `--full-history` in `history_monotonic`; regressions `test_evil_merge_cannot_drop_committed_row`, existing merge positive test proves no false positive |
+| R2-2 | P1 | Percent-encoded remote path (`%61gentic-…`) resolves to the real source repo (`git ls-remote` verified) but bypassed `source_identity_matches`, the mirror deny, and `init-project`'s destructive guard | Single `unquote()` pass before canonicalization (double-encoding stays literal); regressions in `test_telemetry_cutover` + PoC battery |
+| R2-3 | P2 | `git clone /path/…/.git` clone: tail segment `.git` defeated the name-based init guard while carrying full template history | `/.git` tail resolves to the parent name before comparison; PoC `round2c.sh` PASS |
+| R2-4 | P2 | `git replace --graft` fabricated a template-signature root, defeating root/marker lineage | Any non-empty `refs/replace` namespace → lineage unverifiable → refuse; regression `test_replace_refs_refuse_cutover` |
+| R2-5 | P2 | Byte-identical duplicated `cycle_id` row satisfied the required-gate without a real cycle | `validate-telemetry.py` rejects duplicate `cycle_id` (CI step 'Validate telemetry' runs before the gates) |
+| R2-6 | P2 | required-check read the worktree ledger while diffing `base..HEAD`: uncommitted local row masked a missing committed row ('passes locally') | Both gates read the ledger from the HEAD blob and fail closed on a diverged worktree copy; regression `test_worktree_ledger_diverged_from_head_fails_closed` |
+| R2-7 | P2 | Structural permissions test skipped silently when PyYAML missing | Always-on text guard (quoted keys, job indentation) + structural YAML test as defense in depth |
+| R2-8 | P2 | INDEX stripping dropped prose lines naming a removed file in backticks | Only list lines whose EVERY markdown link resolves to a removed file are dropped; prose/backticks survive (init test extended) |
+| R2-9 | P3 | Docstrings/ADR/telemetry.md claimed 'prefix' and repeated the falsified irrepeatability claim | Reworded to the implemented order-preserving-subsequence over `--full-history`; replace-refs/percent/HEAD-read residual notes in ADR-0001 |
+
+Reviewer's verified fix direction (`--full-history`) was applied exactly as recommended; the reviewer had validated it against the suite and all legitimate flows in their own patched copy.
+
+**Post-round-2 verification (author):** 127 template tests OK; full round-1 battery re-run 9/9 blocked; round-2 PoC battery (evil merge, pct aliases ×{gates, init}, .git-tail init, replace-graft, duplicate cycle_id, worktree divergence) all blocked; downstream CI smoke PASS; real Pilot boundary replay PASS; validate-telemetry/doctor/check-task-state/opencode-acceptance PASS.
+
+## Round 3 — resubmission
+
+Round 3 re-reviews commit `0599c4b` with fresh context: verify R2-1…R2-9 closed and hunt for new bypasses. Verdict appended below.
